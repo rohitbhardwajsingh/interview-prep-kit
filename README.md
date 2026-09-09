@@ -118,6 +118,17 @@ Every question and flashcard carries one of three states:
 states. This is the hardest state problem in the brief and the reason the model's
 output is never written straight over stored data.
 
+Regeneration is per section, so disliking the flashcards does not cost you the
+questions. A rebuild says up front how many items it will replace and how many
+are protected, because a guarantee the user cannot see is not one they can act
+on. New items continue the id sequence rather than reusing the ids of items just
+discarded, so a pin or a practice record can never quietly reattach to different
+content.
+
+If the user edits the kit while a rebuild is running, the write is refused and
+the regenerated result is thrown away: their words outrank the model's, and
+that race is the whole reason edits carry a version.
+
 ### Edits are reconciled, not trusted
 
 Editing which requirements a question tests changes what the kit covers, which
@@ -205,7 +216,7 @@ derived only from stored state, so the same inputs always produce the same queue
 ## Testing
 
 ```bash
-npm test          # 423 tests across 33 files
+npm test          # 446 tests across 34 files
 npm run typecheck
 ```
 
@@ -266,9 +277,6 @@ can be checked rather than taken on trust.
 
 ## Known limitations
 
-- **Regeneration is whole-kit.** `mergeRegenerated` is written and tested but not
-  yet exposed per section, so the UI can rebuild a kit but not just its
-  flashcards.
 - **Seniority can come back empty** when a posting never states a level. The
   model correctly declines to invent one, but the UI renders a blank instead of
   saying "not stated".
