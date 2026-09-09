@@ -6,8 +6,13 @@ import type { ServerConfig } from "../config";
 import { connectStore, type Store } from "../db";
 import { createJobRunner, type JobRunner } from "../jobs/runner";
 
+/**
+ * Deliberately not the port the dev stack uses. The suite creates and drops
+ * databases freely, so pointing it at a Mongo someone is developing against
+ * means a test run quietly destroys the kits they were working on.
+ */
 export const TEST_MONGO_URL =
-  process.env["TEST_MONGO_URL"] ?? "mongodb://127.0.0.1:27018";
+  process.env["TEST_MONGO_URL"] ?? "mongodb://127.0.0.1:27019";
 
 export interface Harness {
   app: Express;

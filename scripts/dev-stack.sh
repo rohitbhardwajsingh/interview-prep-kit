@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Brings up the API and web app together. Mongo is expected to be running
-# already.
+# Brings up Mongo, the API and the web app together.
 #
 #   ./scripts/dev-stack.sh          real model, read from .env
 #   ./scripts/dev-stack.sh --stub   a canned model double, no key and no spend
@@ -16,8 +15,13 @@ STUB=0
 
 API_PORT="${API_PORT:-4400}"
 WEB_PORT="${WEB_PORT:-3400}"
-MONGO="${MONGO_URL:-mongodb://127.0.0.1:27018}"
+MONGO_PORT="${MONGO_PORT:-27018}"
+MONGO="${MONGO_URL:-mongodb://127.0.0.1:$MONGO_PORT}"
 LOGS="${LOGS:-/tmp/prepkit}"
+
+# Its own container, on its own port. The test suite drops databases as it
+# goes, so it gets a separate Mongo (27019) and this one is never handed to it.
+DEV_MONGO="prepkit-dev-mongo"
 
 mkdir -p "$LOGS"
 pids=()
@@ -37,6 +41,31 @@ if [ -f .env ]; then
   . ./.env
   set +a
 fi
+
+listening() {
+  (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null && exec 3<&- 3>&-
+}
+
+# Started here rather than assumed, and on a named volume so stopping the
+# stack does not throw away the kits you made. Anything already on the port is
+# left alone, in case you run Mongo yourself.
+if ! listening "$MONGO_PORT"; then
+  docker start "$DEV_MONGO" >/dev/null 2>&1 ||
+    docker run -d --name "$DEV_MONGO" \
+      -p "$MONGO_PORT:27017" \
+      -v prepkit-dev-data:/data/db \
+      mongo:7 >/dev/null ||
+    {
+      echo "could not start $DEV_MONGO on $MONGO_PORT" >&2
+      exit 1
+    }
+
+  for _ in $(seq 1 30); do
+    listening "$MONGO_PORT" && break
+    sleep 1
+  done
+fi
+echo "mongo         $MONGO"
 
 if [ "$STUB" = "1" ]; then
   npx tsx scripts/serve-fake-provider.ts > "$LOGS/provider.log" 2>&1 &

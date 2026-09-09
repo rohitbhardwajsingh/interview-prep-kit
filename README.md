@@ -224,9 +224,13 @@ Server tests run against a real MongoDB rather than mocks, and skip with a clear
 reason if one is not reachable:
 
 ```bash
-docker run -d --name prepkit-test-mongo -p 27018:27017 mongo:7
-TEST_MONGO_URL=mongodb://127.0.0.1:27018 npm test
+docker run -d --name prepkit-test-mongo -p 27019:27017 mongo:7
+npm test
 ```
+
+Port 27019, not the 27018 the dev stack uses. The suite creates and drops
+databases as it goes, so it is never pointed at a Mongo you are developing
+against.
 
 The suite needs no API key and makes no network calls. A fake provider serves
 canned model responses and a fixture server hosts four company websites covering
