@@ -1,0 +1,14 @@
+[
+  {
+    "id": "live-01",
+    "jd": "Senior Backend Engineer\n\nWe are looking for a senior backend engineer to own the ingestion pipeline that handles several billion events per day. You will design and operate the services that receive, validate and route customer event data, and you will be on call for them.\n\nWhat you will do:\n- Own the ingestion and enrichment services end to end, from design through production operation\n- Reduce p99 latency on the write path without sacrificing durability\n- Work with the data platform team on schema evolution and backfills\n- Mentor two mid-level engineers and review their designs\n\nWhat we are looking for:\n- Strong experience writing production services in Go or Rust\n- Deep familiarity with at least one message broker, ideally Kafka\n- You have run Postgres or ClickHouse at scale and can talk about what broke\n- Comfortable owning production: alerting, on call, and incident review\n- Experience with Kubernetes in production\n\nNice to have:\n- Experience with ClickHouse specifically\n- Open source contributions\n- Prior work on developer-facing products\n\nThis role is remote within Europe or North America.",
+    "company_url": "https://posthog.com/",
+    "days": 7
+  },
+  {
+    "id": "live-02",
+    "jd": "Frontend Engineer. React and TypeScript. Remote.",
+    "company_url": "https://posthog.com/",
+    "days": 2
+  }
+]

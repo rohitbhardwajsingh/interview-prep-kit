@@ -11,12 +11,16 @@ import {
   type TransportRequest,
 } from "./types";
 
-export const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
+/** The most capable model a key reaches without billing enabled. */
+export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 export const DEFAULT_GEMINI_BASE_URL =
   "https://generativelanguage.googleapis.com/v1beta";
 
-/** Conservative against the free tier; raise via env once a key's real limits
- *  are known. Being throttled costs a retry, so the default under-claims. */
+/**
+ * The free tier's own published ceiling. There is also a daily request cap,
+ * which no per-minute limiter can spend its way around: a run that exhausts it
+ * fails the remaining cases with RATE_LIMITED rather than silently degrading.
+ */
 export const DEFAULT_REQUESTS_PER_MINUTE = 10;
 export const DEFAULT_TOKENS_PER_MINUTE = 200_000;
 

@@ -11,7 +11,8 @@ import {
   type TransportRequest,
 } from "./types";
 
-export const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5";
+/** The current canonical Sonnet. Set LLM_MODEL to claude-haiku-4-5 for less spend. */
+export const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 export const DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
 export const ANTHROPIC_VERSION = "2023-06-01";
 

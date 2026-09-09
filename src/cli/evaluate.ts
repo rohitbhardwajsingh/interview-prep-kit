@@ -6,9 +6,11 @@ import { LlmError } from "../core/llm/types";
 import { allowPrivateHostsFromEnv } from "../core/retrieval/url-guard";
 import { ArgumentError, EVALUATE_USAGE, parseEvaluateArgs } from "./args";
 import { CasesFileError, parseCasesFile } from "./cases";
+import { loadDotEnv } from "./env";
 import { runBatch } from "./run-batch";
 
 async function main(): Promise<number> {
+  loadDotEnv();
   const args = parseEvaluateArgs(process.argv.slice(2), process.env);
   const inputPath = resolve(args.inputPath);
   const outputPath = resolve(args.outputPath);
