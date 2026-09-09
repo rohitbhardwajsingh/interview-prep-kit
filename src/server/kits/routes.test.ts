@@ -294,6 +294,226 @@ describe.skipIf(!available)("kit routes", () => {
     });
   });
 
+  describe("regenerating one section", () => {
+    /**
+     * The fake reads its script on every call, so swapping the questions after
+     * the first generation is what makes a rebuild observably different rather
+     * than the same content twice.
+     */
+    async function readyToRegenerate() {
+      const script: FakePortsScript = {
+        ...SCRIPT,
+        questionsByPass: [[...(SCRIPT.questionsByPass?.[0] ?? [])]],
+      };
+      const context = await generated(script);
+      const before = await context.agent.get(`/kits/${context.kitId}`);
+
+      script.questionsByPass = [
+        [buildQuestion("fresh-a", ["r1"]), buildQuestion("fresh-b", ["r2"])],
+      ];
+      script.flashcards = [buildFlashcard("new-card", ["r2"])];
+
+      return { ...context, script, before: before.body.kit };
+    }
+
+    it("rebuilds the questions without touching the flashcards", async () => {
+      const { harness, agent, kitId, before } = await readyToRegenerate();
+
+      await agent
+        .post(`/kits/${kitId}/regenerate`)
+        .send({ section: "questions", version: before.version })
+        .expect(202);
+      await harness.runner.drain();
+
+      const after = await agent.get(`/kits/${kitId}`);
+      expect(after.body.kit.status).toBe("ready");
+      expect(after.body.kit.kit.flashcards).toEqual(before.kit.flashcards);
+      expect(
+        after.body.kit.kit.questions.map((q: { prompt: string }) => q.prompt),
+      ).toEqual(["Prompt for fresh-a", "Prompt for fresh-b"]);
+    });
+
+    it("keeps a question the user edited and replaces the rest", async () => {
+      const { harness, agent, kitId, before } = await readyToRegenerate();
+
+      const edited = await agent
+        .patch(`/kits/${kitId}/questions/q1`)
+        .send({
+          version: before.version,
+          patch: { prompt: "The one I wrote myself" },
+        })
+        .expect(200);
+
+      await agent
+        .post(`/kits/${kitId}/regenerate`)
+        .send({ section: "questions", version: edited.body.kit.version })
+        .expect(202);
+      await harness.runner.drain();
+
+      const after = await agent.get(`/kits/${kitId}`);
+      const survivor = after.body.kit.kit.questions.find(
+        (q: { id: string }) => q.id === "q1",
+      );
+
+      expect(survivor.prompt).toBe("The one I wrote myself");
+      expect(survivor.provenance).toBe("edited");
+      // q2 and q3 were the model's own, so they are gone.
+      const ids = after.body.kit.kit.questions.map((q: { id: string }) => q.id);
+      expect(ids).not.toContain("q2");
+      expect(ids).not.toContain("q3");
+    });
+
+    it("keeps a pinned question the user never edited", async () => {
+      const { harness, agent, kitId, before } = await readyToRegenerate();
+
+      const pinned = await agent
+        .put(`/kits/${kitId}/questions/q3/pin`)
+        .send({ version: before.version, pinned: true })
+        .expect(200);
+
+      await agent
+        .post(`/kits/${kitId}/regenerate`)
+        .send({ section: "questions", version: pinned.body.kit.version })
+        .expect(202);
+      await harness.runner.drain();
+
+      const after = await agent.get(`/kits/${kitId}`);
+      const survivor = after.body.kit.kit.questions.find(
+        (q: { id: string }) => q.id === "q3",
+      );
+      expect(survivor?.provenance).toBe("pinned");
+    });
+
+    it("never reissues the id of a question it replaced", async () => {
+      const { harness, agent, kitId, before } = await readyToRegenerate();
+
+      await agent
+        .post(`/kits/${kitId}/regenerate`)
+        .send({ section: "questions", version: before.version })
+        .expect(202);
+      await harness.runner.drain();
+
+      const after = await agent.get(`/kits/${kitId}`);
+      const ids = after.body.kit.kit.questions.map((q: { id: string }) => q.id);
+
+      // A practice record still pointing at q1 must not reattach to new text.
+      expect(ids).toEqual(["q4", "q5"]);
+    });
+
+    it("rebuilds the flashcards without touching the questions", async () => {
+      const { harness, agent, kitId, before } = await readyToRegenerate();
+
+      await agent
+        .post(`/kits/${kitId}/regenerate`)
+        .send({ section: "flashcards", version: before.version })
+        .expect(202);
+      await harness.runner.drain();
+
+      const after = await agent.get(`/kits/${kitId}`);
+      expect(after.body.kit.kit.questions).toEqual(before.kit.questions);
+      expect(after.body.kit.kit.flashcards[0].front).toContain("new-card");
+    });
+
+    it("reports the section it is rebuilding on the progress feed", async () => {
+      const { harness, agent, kitId, before } = await readyToRegenerate();
+
+      await agent
+        .post(`/kits/${kitId}/regenerate`)
+        .send({ section: "flashcards", version: before.version })
+        .expect(202);
+      await harness.runner.drain();
+
+      const { body } = await agent.get(`/kits/${kitId}/job`).expect(200);
+      expect(body.job.kind).toBe("regenerate-section");
+      expect(body.job.scope).toBe("flashcards");
+      expect(body.job.steps.map((step: { step: string }) => step.step)).toContain(
+        "regenerate-flashcards",
+      );
+    });
+
+    it("refuses a request made against a version that has moved on", async () => {
+      const { agent, kitId, before } = await readyToRegenerate();
+
+      await agent
+        .patch(`/kits/${kitId}/questions/q1`)
+        .send({ version: before.version, patch: { prompt: "Moves it on" } })
+        .expect(200);
+
+      const response = await agent
+        .post(`/kits/${kitId}/regenerate`)
+        .send({ section: "questions", version: before.version });
+
+      expect(response.status).toBe(409);
+      expect(response.body.error.message).toContain("reload");
+    });
+
+    it("keeps the user's edit when it lands mid-regeneration", async () => {
+      const { harness, agent, kitId, script, before } =
+        await readyToRegenerate();
+
+      // Slow enough that the edit commits while the model is still working,
+      // which is the race the version guard exists for.
+      script.delayMs = 80;
+
+      await agent
+        .post(`/kits/${kitId}/regenerate`)
+        .send({ section: "questions", version: before.version })
+        .expect(202);
+
+      await agent
+        .patch(`/kits/${kitId}/questions/q2`)
+        .send({
+          version: before.version,
+          patch: { prompt: "Typed while it was thinking" },
+        })
+        .expect(200);
+
+      await harness.runner.drain();
+
+      const after = await agent.get(`/kits/${kitId}`);
+      const mine = after.body.kit.kit.questions.find(
+        (q: { id: string }) => q.id === "q2",
+      );
+
+      // The edit survives and the regenerated questions are thrown away.
+      expect(mine.prompt).toBe("Typed while it was thinking");
+      expect(after.body.kit.status).toBe("ready");
+
+      const { body } = await agent.get(`/kits/${kitId}/job`);
+      expect(body.job.error.code).toBe("SUPERSEDED");
+    });
+
+    it("leaves the kit usable when regeneration fails", async () => {
+      const { harness, agent, kitId, script, before } =
+        await readyToRegenerate();
+
+      script.failOn = "generateQuestions";
+      script.failWith = new PipelineError("GENERATION_FAILED", "Provider down");
+
+      await agent
+        .post(`/kits/${kitId}/regenerate`)
+        .send({ section: "questions", version: before.version })
+        .expect(202);
+      await harness.runner.drain();
+
+      const after = await agent.get(`/kits/${kitId}`);
+
+      // Still "ready": the kit it had before is intact and studiable.
+      expect(after.body.kit.status).toBe("ready");
+      expect(after.body.kit.kit.questions).toEqual(before.kit.questions);
+      expect(after.body.kit.error.code).toBe("GENERATION_FAILED");
+    });
+
+    it("refuses a section it does not know how to rebuild", async () => {
+      const { agent, kitId, before } = await readyToRegenerate();
+
+      await agent
+        .post(`/kits/${kitId}/regenerate`)
+        .send({ section: "schedule", version: before.version })
+        .expect(400);
+    });
+  });
+
   describe("ownership", () => {
     it("hides one user's kit from another", async () => {
       const { harness, kitId } = await generated();

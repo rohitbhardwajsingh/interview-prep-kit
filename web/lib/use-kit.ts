@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api";
-import type { Job, KitDetail } from "./types";
+import type { Job, KitDetail, RegenerableSection } from "./types";
 
 const POLL_MS = 1_200;
 
@@ -90,5 +90,22 @@ export function useKit(kitId: string) {
     await refresh();
   }, [kitId, refresh]);
 
-  return { ...state, refresh, apply, regenerate };
+  /**
+   * Rebuilds one section. Sends the version on screen, so a kit that changed
+   * in another tab is refused here rather than discovered after the model has
+   * already spent ninety seconds writing over it.
+   */
+  const regenerateSection = useCallback(
+    async (section: RegenerableSection, version: number) => {
+      await api(`/kits/${kitId}/regenerate`, {
+        method: "POST",
+        body: { section, version },
+      });
+      watching.current = true;
+      await refresh();
+    },
+    [kitId, refresh],
+  );
+
+  return { ...state, refresh, apply, regenerate, regenerateSection };
 }

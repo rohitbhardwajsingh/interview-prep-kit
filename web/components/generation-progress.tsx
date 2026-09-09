@@ -1,6 +1,11 @@
 "use client";
 
-import { describeProgress, extraSteps, type DisplayStep } from "@/lib/steps";
+import {
+  describeProgress,
+  expectedStepsFor,
+  extraSteps,
+  type DisplayStep,
+} from "@/lib/steps";
 import type { Job } from "@/lib/types";
 
 const ICONS: Record<DisplayStep["state"], string> = {
@@ -25,8 +30,9 @@ function seconds(ms: number): string {
 }
 
 export function GenerationProgress({ job }: { job: Job | null }) {
-  const steps = describeProgress(job?.steps ?? [], job?.status ?? null);
-  const notes = extraSteps(job?.steps ?? []);
+  const expected = expectedStepsFor(job);
+  const steps = describeProgress(job?.steps ?? [], job?.status ?? null, expected);
+  const notes = extraSteps(job?.steps ?? [], expected);
 
   return (
     <div className="space-y-6">
@@ -87,7 +93,16 @@ export function GenerationProgress({ job }: { job: Job | null }) {
         </div>
       )}
 
-      {job?.status === "failed" && job.error && (
+      {/* A superseded run is not a fault: the guard did its job and kept the
+          user's edit, so it reads as an outcome rather than a breakage. */}
+      {job?.status === "failed" && job.error?.code === "SUPERSEDED" && (
+        <div className="rounded-lg border border-warn/40 bg-warn/10 p-3">
+          <p className="text-sm font-medium text-warn">Your edit won</p>
+          <p className="mt-1 text-xs text-muted">{job.error.message}</p>
+        </div>
+      )}
+
+      {job?.status === "failed" && job.error && job.error.code !== "SUPERSEDED" && (
         <div
           role="alert"
           className="rounded-lg border border-bad/40 bg-bad/10 p-3"

@@ -81,6 +81,10 @@ export interface KitDetail extends KitSummary {
   kit: Kit | null;
 }
 
+/** The sections the API can rebuild on their own. */
+export const REGENERABLE_SECTIONS = ["questions", "flashcards"] as const;
+export type RegenerableSection = (typeof REGENERABLE_SECTIONS)[number];
+
 export interface TraceStep {
   step: string;
   status: "ok" | "failed" | "skipped";

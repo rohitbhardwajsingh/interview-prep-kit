@@ -7,8 +7,9 @@ import { ConflictDialog, type Conflict } from "@/components/conflict-dialog";
 import { Editable } from "@/components/editable";
 import { GenerationProgress } from "@/components/generation-progress";
 import { ProvenanceBadge } from "@/components/provenance-badge";
+import { RegenerateSection } from "@/components/regenerate-section";
 import { api, ApiError } from "@/lib/api";
-import type { KitDetail } from "@/lib/types";
+import type { KitDetail, Provenance, RegenerableSection } from "@/lib/types";
 import { useKit } from "@/lib/use-kit";
 
 type Tab = "plan" | "questions" | "flashcards" | "company";
@@ -23,7 +24,8 @@ const TABS: { id: Tab; label: string }[] = [
 export default function KitPage() {
   const params = useParams<{ kitId: string }>();
   const kitId = params.kitId;
-  const { kit, job, loading, error, apply, refresh, regenerate } = useKit(kitId);
+  const { kit, job, loading, error, apply, refresh, regenerate, regenerateSection } =
+    useKit(kitId);
   const [tab, setTab] = useState<Tab>("plan");
   const [conflict, setConflict] = useState<Conflict | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -114,6 +116,14 @@ export default function KitPage() {
         cause instanceof ApiError ? cause.message : "Could not change that",
       );
     }
+  }
+
+  async function rebuild(section: RegenerableSection) {
+    if (!kit) return;
+    // Errors propagate: the toolbar owns the confirmation, so it is the thing
+    // that should show why a rebuild was refused.
+    await regenerateSection(section, kit.version);
+    setNotice(null);
   }
 
   if (loading) {
@@ -250,7 +260,14 @@ export default function KitPage() {
             {tab === "plan" && <PlanTab kit={body} />}
 
             {tab === "questions" && (
-              <ul className="space-y-3">
+              <>
+                <SectionToolbar
+                  section="questions"
+                  items={body.questions}
+                  disabled={building}
+                  onRebuild={() => rebuild("questions")}
+                />
+                <ul className="space-y-3">
                 {body.questions.map((question) => (
                   <li key={question.id} className="card p-4">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -327,11 +344,19 @@ export default function KitPage() {
                     </p>
                   </li>
                 ))}
-              </ul>
+                </ul>
+              </>
             )}
 
             {tab === "flashcards" && (
-              <ul className="grid gap-3 sm:grid-cols-2">
+              <>
+                <SectionToolbar
+                  section="flashcards"
+                  items={body.flashcards}
+                  disabled={building}
+                  onRebuild={() => rebuild("flashcards")}
+                />
+                <ul className="grid gap-3 sm:grid-cols-2">
                 {body.flashcards.map((card) => (
                   <li key={card.id} className="card p-4">
                     <div className="mb-2 flex items-center gap-2">
@@ -376,7 +401,8 @@ export default function KitPage() {
                     </div>
                   </li>
                 ))}
-              </ul>
+                </ul>
+              </>
             )}
 
             {tab === "company" && <CompanyTab kit={body} />}
@@ -395,6 +421,41 @@ export default function KitPage() {
         />
       )}
     </main>
+  );
+}
+
+/**
+ * Sits above a section and says how much of it is the model's. The count is
+ * the point: it tells the user what a rebuild would cost before they ask for
+ * one, and it makes pinning visibly worth doing.
+ */
+function SectionToolbar({
+  section,
+  items,
+  disabled,
+  onRebuild,
+}: {
+  section: RegenerableSection;
+  items: readonly { provenance: Provenance }[];
+  disabled: boolean;
+  onRebuild: () => Promise<void>;
+}) {
+  const yours = items.filter((item) => item.provenance !== "generated").length;
+
+  return (
+    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <p className="text-xs text-muted">
+        {yours === 0
+          ? `All ${items.length} written by the model.`
+          : `${yours} of ${items.length} ${yours === 1 ? "is" : "are"} yours and protected from a rebuild.`}
+      </p>
+      <RegenerateSection
+        section={section}
+        items={items}
+        disabled={disabled}
+        onConfirm={onRebuild}
+      />
+    </div>
   );
 }
 

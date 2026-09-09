@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { Router } from "express";
 import { checkEvidence, type EvidenceLink } from "../../core/evidence/check";
+import { REGENERABLE_SECTIONS } from "../../core/pipeline/regenerate-section";
 import { requireUser } from "../auth/guard";
 import type { Store } from "../db";
 import { badRequest, conflict, notFound, route } from "../http/errors";
@@ -18,6 +19,11 @@ import {
 import { createKitSchema, provisionalTitle, type KitRecord } from "./types";
 
 const sectionSchema = z.enum(EDITABLE_SECTIONS);
+
+const regenerateSchema = z.object({
+  section: z.enum(REGENERABLE_SECTIONS),
+  version: z.number().int().nonnegative(),
+});
 
 const evidenceSchema = z.object({
   links: z
@@ -122,6 +128,39 @@ export function kitRoutes(store: Store, runner: JobRunner): Router {
         kitId,
       });
       response.status(202).json({ jobId: job._id });
+    }),
+  );
+
+  /**
+   * Rebuilds one section rather than the whole kit, so a user who dislikes the
+   * flashcards does not have to sacrifice the questions to get new ones.
+   */
+  router.post(
+    "/:kitId/regenerate",
+    route(async (request, response) => {
+      const { section, version } = regenerateSchema.parse(request.body);
+      const kitId = param(request, "kitId");
+
+      const record = await load(request.userId, kitId);
+      if (!record.kit) throw conflict("This kit has nothing to regenerate yet");
+
+      // Checked before the claim so a stale client is told to reload instead
+      // of tying the kit up for ninety seconds to no purpose.
+      if (record.version !== version) {
+        throw conflict(
+          "This kit changed since you loaded it; reload before regenerating",
+          { yourVersion: version, currentVersion: record.version },
+        );
+      }
+
+      const job = await runner.startSectionRegeneration({
+        userId: request.userId,
+        kitId,
+        section,
+        version,
+      });
+
+      response.status(202).json({ jobId: job._id, section });
     }),
   );
 

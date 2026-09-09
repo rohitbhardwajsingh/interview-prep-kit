@@ -58,6 +58,36 @@ export const EXPECTED_STEPS: ExpectedStep[] = [
   },
 ];
 
+/**
+ * A section rebuild is one call, not the whole pipeline. Showing the full
+ * journey for it would promise research and scheduling that deliberately do
+ * not happen — the pages were already read, and the schedule is recomputed in
+ * code rather than asked for.
+ */
+const REGENERATION_STEPS: Record<string, ExpectedStep[]> = {
+  questions: [
+    {
+      id: "regenerate-questions",
+      label: "Rewriting the questions",
+      hint: "Anything you edited or pinned is left alone",
+    },
+  ],
+  flashcards: [
+    {
+      id: "regenerate-flashcards",
+      label: "Rebuilding the flashcards",
+      hint: "Anything you edited or pinned is left alone",
+    },
+  ],
+};
+
+export function expectedStepsFor(
+  job: { kind: string; scope: string | null } | null,
+): ExpectedStep[] {
+  if (job?.kind !== "regenerate-section" || !job.scope) return EXPECTED_STEPS;
+  return REGENERATION_STEPS[job.scope] ?? EXPECTED_STEPS;
+}
+
 export type StepState = "waiting" | "running" | "ok" | "failed" | "skipped";
 
 export interface DisplayStep {
@@ -85,19 +115,20 @@ function matching(expected: ExpectedStep, steps: TraceStep[]): TraceStep[] {
 export function describeProgress(
   steps: TraceStep[],
   jobStatus: "running" | "succeeded" | "failed" | null,
+  expectedSteps: ExpectedStep[] = EXPECTED_STEPS,
 ): DisplayStep[] {
-  const seen = EXPECTED_STEPS.map((expected) => matching(expected, steps));
+  const seen = expectedSteps.map((expected) => matching(expected, steps));
   const failedAt = seen.findIndex((group) =>
     group.some((step) => step.status === "failed"),
   );
 
   // Where the run currently is: the first expected stage with nothing
   // recorded against it, ignoring stages that may legitimately not happen.
-  const position = EXPECTED_STEPS.findIndex(
+  const position = expectedSteps.findIndex(
     (expected, index) => seen[index]?.length === 0 && !expected.conditional,
   );
 
-  return EXPECTED_STEPS.map((expected, index) => {
+  return expectedSteps.map((expected, index) => {
     const group = seen[index] ?? [];
 
     if (group.length > 0) {
@@ -135,10 +166,13 @@ export function describeProgress(
 }
 
 /** Steps the run recorded that are not part of the expected sequence. */
-export function extraSteps(steps: TraceStep[]): TraceStep[] {
+export function extraSteps(
+  steps: TraceStep[],
+  expectedSteps: ExpectedStep[] = EXPECTED_STEPS,
+): TraceStep[] {
   return steps.filter(
     (step) =>
-      !EXPECTED_STEPS.some((expected) =>
+      !expectedSteps.some((expected) =>
         expected.matchesPrefix
           ? step.step.startsWith(expected.id)
           : step.step === expected.id,
