@@ -112,7 +112,7 @@ MONGO_URL="$MONGO" \
 MONGO_DB="${MONGO_DB:-prepkit_dev}" \
 PORT="$API_PORT" \
 WEB_ORIGIN="http://localhost:$WEB_PORT" \
-  npx tsx src/server/index.ts > "$LOGS/api.log" 2>&1 &
+  npx tsx watch src/server/index.ts > "$LOGS/api.log" 2>&1 &
 pids+=($!)
 
 (cd web && NEXT_PUBLIC_API_URL="http://localhost:$API_PORT" \
