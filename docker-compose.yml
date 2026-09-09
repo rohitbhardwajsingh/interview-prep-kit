@@ -1,0 +1,71 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    # Not published to the host: only the api needs to reach it, and leaving it
+    # closed means nothing on the machine can talk to an unauthenticated Mongo.
+    expose:
+      - "27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: "4000"
+      MONGO_URL: mongodb://mongo:27017
+      MONGO_DB: prepkit
+      # Only the browser origin may call the API with credentials.
+      WEB_ORIGIN: http://localhost:3000
+      SESSION_SECRET: ${SESSION_SECRET:-dev-only-not-a-real-secret}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      # Company sites are public, so private addresses stay refused.
+      ALLOW_PRIVATE_HOSTS: ${ALLOW_PRIVATE_HOSTS:-false}
+    ports:
+      - "4000:4000"
+    volumes:
+      # Source is mounted for reload; node_modules stays the image's own, so a
+      # host install for a different platform cannot leak in.
+      - ./src:/app/src:ro
+      - ./fixtures:/app/fixtures:ro
+      - /app/node_modules
+
+  web:
+    build:
+      context: ./web
+      dockerfile: ../docker/web.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: development
+      # Read in the browser, so it must be the host-visible address.
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./web/app:/app/app
+      - ./web/components:/app/components
+      - ./web/lib:/app/lib
+      - /app/node_modules
+      - /app/.next
+
+volumes:
+  mongo-data:
