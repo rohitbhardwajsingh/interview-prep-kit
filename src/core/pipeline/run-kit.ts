@@ -12,6 +12,8 @@ export interface RunKitOptions {
   maxCoveragePasses?: number;
   deadlineAt?: number;
   now?: () => Date;
+  /** Supplied when a caller needs to watch progress as it happens. */
+  trace?: RunTrace;
 }
 
 export interface KitRunResult {
@@ -43,7 +45,7 @@ export async function runKit(
 ): Promise<KitRunResult> {
   const now = options.now ?? (() => new Date());
   const maxPasses = options.maxCoveragePasses ?? DEFAULT_MAX_COVERAGE_PASSES;
-  const trace = new RunTrace();
+  const trace = options.trace ?? new RunTrace();
   const context: PipelineContext = {
     trace,
     deadlineAt: options.deadlineAt ?? Number.POSITIVE_INFINITY,

@@ -1,7 +1,17 @@
 import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import type { ScryptOptions } from "node:crypto";
 import { promisify } from "node:util";
 
-const scryptAsync = promisify(scrypt);
+/**
+ * promisify resolves to scrypt's three-argument overload, which drops the
+ * options that carry the cost parameters, so the signature is restated.
+ */
+const scryptAsync = promisify(scrypt) as (
+  password: string | Buffer,
+  salt: string | Buffer,
+  keylen: number,
+  options: ScryptOptions,
+) => Promise<Buffer>;
 
 /**
  * scrypt from Node's own crypto, rather than a bcrypt package. It is a
@@ -21,13 +31,13 @@ export const MIN_PASSWORD_LENGTH = 10;
 /** Encodes the parameters alongside the hash so the cost can be raised later. */
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(SALT_LENGTH);
-  const derived = (await scryptAsync(password, salt, KEY_LENGTH, {
+  const derived = await scryptAsync(password, salt, KEY_LENGTH, {
     N: COST,
     r: BLOCK_SIZE,
     p: PARALLELISM,
     // Node refuses scrypt above a default memory ceiling at this cost.
     maxmem: 128 * COST * BLOCK_SIZE * 2,
-  })) as Buffer;
+  });
 
   return [
     "scrypt",
@@ -72,12 +82,12 @@ export async function verifyPassword(
 
   let derived: Buffer;
   try {
-    derived = (await scryptAsync(password, salt, expected.length, {
+    derived = await scryptAsync(password, salt, expected.length, {
       N: cost,
       r: blockSize,
       p: parallelism,
       maxmem: 128 * cost * blockSize * 2,
-    })) as Buffer;
+    });
   } catch {
     return false;
   }

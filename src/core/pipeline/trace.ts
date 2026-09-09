@@ -15,6 +15,23 @@ export interface TraceEntry {
 export class RunTrace {
   private readonly entries: TraceEntry[] = [];
 
+  /**
+   * Notified as each step lands, so a caller can persist progress while the
+   * run is still going. Without it the trace is only readable once the whole
+   * pipeline has finished, which is too late to show anyone.
+   */
+  constructor(private readonly onEntry?: (entry: TraceEntry) => void) {}
+
+  private record(entry: TraceEntry): void {
+    this.entries.push(entry);
+    try {
+      this.onEntry?.(entry);
+    } catch (cause) {
+      // A listener that throws must not fail the pipeline step it is watching.
+      console.error("[trace] listener failed", cause);
+    }
+  }
+
   async step<T>(
     name: string,
     run: () => Promise<T>,
@@ -23,7 +40,7 @@ export class RunTrace {
     const startedAt = Date.now();
     try {
       const value = await run();
-      this.entries.push({
+      this.record({
         step: name,
         status: "ok",
         detail: describe?.(value) ?? "",
@@ -31,7 +48,7 @@ export class RunTrace {
       });
       return value;
     } catch (cause) {
-      this.entries.push({
+      this.record({
         step: name,
         status: "failed",
         detail: cause instanceof Error ? cause.message : String(cause),
@@ -42,7 +59,7 @@ export class RunTrace {
   }
 
   skip(name: string, detail: string): void {
-    this.entries.push({ step: name, status: "skipped", detail, duration_ms: 0 });
+    this.record({ step: name, status: "skipped", detail, duration_ms: 0 });
   }
 
   snapshot(): TraceEntry[] {
