@@ -8,6 +8,7 @@ import type { Store } from "./db";
 import { errorHandler, notFoundHandler } from "./http/errors";
 import { createJobRunner, type JobRunner } from "./jobs/runner";
 import { kitRoutes } from "./kits/routes";
+import { practiceRoutes } from "./practice/routes";
 import { storyRoutes } from "./stories/routes";
 
 export const SESSION_COOKIE = "prepkit.sid";
@@ -86,6 +87,8 @@ export function createApp(dependencies: AppDependencies): BuiltApp {
 
   app.use("/auth", authRoutes(store));
   app.use("/kits", kitRoutes(store, runner));
+  // Mounted under /kits too, so practice state is addressed alongside its kit.
+  app.use("/kits", practiceRoutes(store));
   app.use("/stories", storyRoutes(store));
 
   app.use(notFoundHandler);

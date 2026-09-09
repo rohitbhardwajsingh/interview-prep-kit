@@ -1,6 +1,7 @@
 import { MongoClient, type Collection, type Db } from "mongodb";
 import type { JobRecord } from "./jobs/types";
 import type { KitRecord } from "./kits/types";
+import type { ReviewRecord } from "./practice/types";
 import type { StoryRecord } from "./stories/types";
 import type { UserRecord } from "./auth/types";
 
@@ -10,6 +11,7 @@ export interface Store {
   kits: Collection<KitRecord>;
   jobs: Collection<JobRecord>;
   stories: Collection<StoryRecord>;
+  reviews: Collection<ReviewRecord>;
   close(): Promise<void>;
 }
 
@@ -26,6 +28,7 @@ async function ensureIndexes(store: Omit<Store, "close">): Promise<void> {
   await store.jobs.createIndex({ kitId: 1 });
   await store.jobs.createIndex({ userId: 1, createdAt: -1 });
   await store.stories.createIndex({ userId: 1, createdAt: -1 });
+  await store.reviews.createIndex({ userId: 1, kitId: 1 });
 }
 
 export async function connectStore(
@@ -44,6 +47,7 @@ export async function connectStore(
     kits: db.collection<KitRecord>("kits"),
     jobs: db.collection<JobRecord>("jobs"),
     stories: db.collection<StoryRecord>("stories"),
+    reviews: db.collection<ReviewRecord>("reviews"),
   };
 
   await ensureIndexes(store);

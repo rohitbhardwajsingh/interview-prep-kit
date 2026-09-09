@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-ink text-paper antialiased;
+  }
+
+  /* Focus is always visible: this app is keyboard-driven by design. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-edited ring-offset-2 ring-offset-ink;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-ink-line bg-ink-soft;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2
+      text-sm font-medium transition disabled:cursor-not-allowed
+      disabled:opacity-40;
+  }
+
+  .btn-primary {
+    @apply btn bg-edited text-ink hover:brightness-110;
+  }
+
+  .btn-ghost {
+    @apply btn border border-ink-line text-paper hover:bg-ink-line;
+  }
+
+  .field {
+    @apply w-full rounded-lg border border-ink-line bg-ink px-3 py-2 text-sm
+      text-paper placeholder:text-muted focus:border-edited;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border px-2 py-0.5
+      text-[11px] font-medium uppercase tracking-wide;
+  }
+}
+
+@layer utilities {
+  /* Respects a stated preference for less motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
