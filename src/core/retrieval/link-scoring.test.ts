@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankLinks, sameOrigin, scoreLink } from "./link-scoring";
+import { basePathOf, rankLinks, sameOrigin, scoreLink } from "./link-scoring";
 
 const origin = "https://acme.test";
 
@@ -64,6 +64,48 @@ describe("scoreLink", () => {
 
   it("scores a link it cannot parse as zero rather than throwing", () => {
     expect(scoreLink(link("::::", "Careers")).hiring).toBe(0);
+  });
+
+  it("ignores a base path that would otherwise signal on every link", () => {
+    const scored = scoreLink(
+      link("https://acme.test/careers-co/privacy", "Privacy"),
+      "/careers-co/",
+    );
+
+    expect(scored.hiring).toBe(0);
+  });
+
+  it("still scores the part of the path below the base", () => {
+    const scored = scoreLink(
+      link("https://acme.test/careers-co/how-we-hire", "Read more"),
+      "/careers-co/",
+    );
+
+    expect(scored.hiring).toBeGreaterThan(0);
+    expect(scored.signals).toContain("how-we-hire");
+  });
+
+  it("measures depth below the base rather than from the root", () => {
+    const url = "https://acme.test/eu/acme/careers";
+
+    expect(scoreLink(link(url, "Careers"), "/eu/acme/").hiring).toBeGreaterThan(
+      scoreLink(link(url, "Careers"), "/").hiring,
+    );
+  });
+});
+
+describe("basePathOf", () => {
+  it("keeps a trailing directory", () => {
+    expect(basePathOf("http://localhost:8099/acme/")).toBe("/acme/");
+  });
+
+  it("drops a trailing file name", () => {
+    expect(basePathOf("http://localhost:8099/acme")).toBe("/");
+    expect(basePathOf("http://localhost:8099/eu/acme")).toBe("/eu/");
+  });
+
+  it("falls back to the root for a URL it cannot parse", () => {
+    expect(basePathOf("nonsense")).toBe("/");
   });
 });
 

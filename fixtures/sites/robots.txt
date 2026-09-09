@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /acme/login
+Disallow: /acme/jobs-archive
+Disallow: /blocked/
+Crawl-delay: 0

@@ -54,8 +54,28 @@ export interface ScoredLink extends ExtractedLink {
   signals: string[];
 }
 
-function pathDepth(url: URL): number {
-  return url.pathname.split("/").filter(Boolean).length;
+function pathDepth(path: string): number {
+  return path.split("/").filter(Boolean).length;
+}
+
+/**
+ * A site served under a subpath puts that subpath on every link, so scoring the
+ * whole path lets the base leak in as a false signal — a company hosted at
+ * /careers-co/ would make every page look like a careers page. Only the part
+ * below the base is scored.
+ */
+export function basePathOf(baseUrl: string): string {
+  try {
+    const { pathname } = new URL(baseUrl);
+    return pathname.endsWith("/") ? pathname : pathname.replace(/[^/]*$/, "");
+  } catch {
+    return "/";
+  }
+}
+
+function relativeTo(path: string, basePath: string): string {
+  if (basePath === "/" || !path.startsWith(basePath)) return path;
+  return path.slice(basePath.length - 1);
 }
 
 function applySignals(
@@ -72,7 +92,7 @@ function applySignals(
   return score;
 }
 
-export function scoreLink(link: ExtractedLink): ScoredLink {
+export function scoreLink(link: ExtractedLink, basePath = "/"): ScoredLink {
   const matched = new Set<string>();
 
   let url: URL;
@@ -82,11 +102,12 @@ export function scoreLink(link: ExtractedLink): ScoredLink {
     return { ...link, hiring: 0, about: 0, signals: [] };
   }
 
-  const path = decodeURIComponent(url.pathname + url.search).toLowerCase();
+  const relative = relativeTo(url.pathname, basePath);
+  const path = decodeURIComponent(relative + url.search).toLowerCase();
   const anchor = link.anchorText.toLowerCase();
 
   const penalty = applySignals(path, PENALTIES, matched);
-  const depthPenalty = Math.max(0, pathDepth(url) - 2);
+  const depthPenalty = Math.max(0, pathDepth(relative) - 2);
 
   const hiring =
     applySignals(path, HIRING_SIGNALS, matched) +
@@ -128,12 +149,13 @@ export interface RankedLinks {
  */
 export function rankLinks(
   links: readonly ExtractedLink[],
-  origin: string,
+  baseUrl: string,
   limitPerCategory: number,
 ): RankedLinks {
+  const basePath = basePathOf(baseUrl);
   const scored = links
-    .filter((link) => sameOrigin(link.url, origin))
-    .map(scoreLink);
+    .filter((link) => sameOrigin(link.url, baseUrl))
+    .map((link) => scoreLink(link, basePath));
 
   const take = (key: "hiring" | "about"): ScoredLink[] =>
     scored
