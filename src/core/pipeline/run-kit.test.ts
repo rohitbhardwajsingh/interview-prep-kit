@@ -69,7 +69,25 @@ describe("runKit", () => {
     expect(
       ports.calls.generateQuestions[1]?.requirements.map((item) => item.id),
     ).toEqual(["r2"]);
-    expect(ports.calls.generateQuestions[1]?.existingQuestionIds).toEqual(["q1"]);
+    expect(
+      ports.calls.generateQuestions[1]?.existingQuestions.map((item) => item.id),
+    ).toEqual(["q1"]);
+  });
+
+  it("gives every pass the full requirement id set to validate against", async () => {
+    const ports = createFakePorts({
+      requirements: [buildRequirement("r1"), buildRequirement("r2")],
+      questionsByPass: [
+        [buildQuestion("q1", ["r1"])],
+        [buildQuestion("q2", ["r2"])],
+      ],
+    });
+
+    await runKit(request, ports);
+
+    for (const call of ports.calls.generateQuestions) {
+      expect(call.allRequirementIds).toEqual(["r1", "r2"]);
+    }
   });
 
   it("does not loop for an uncovered nice-to-have", async () => {

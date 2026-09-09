@@ -1,3 +1,4 @@
+import { LlmError } from "../llm/types";
 import { TimeoutError } from "../util/async";
 
 export const PIPELINE_ERROR_CODES = {
@@ -29,6 +30,15 @@ export function toPipelineError(cause: unknown): PipelineError {
   if (cause instanceof PipelineError) return cause;
   if (cause instanceof TimeoutError) {
     return new PipelineError(PIPELINE_ERROR_CODES.TIMEOUT, cause.message, { cause });
+  }
+  // The provider's own code travels in the message, so a report distinguishes a
+  // bad key from a rate limit without needing a second error taxonomy.
+  if (cause instanceof LlmError) {
+    return new PipelineError(
+      PIPELINE_ERROR_CODES.GENERATION_FAILED,
+      `${cause.code}: ${cause.message}`,
+      { cause },
+    );
   }
   const message = cause instanceof Error ? cause.message : String(cause);
   return new PipelineError(PIPELINE_ERROR_CODES.UNKNOWN, message, { cause });

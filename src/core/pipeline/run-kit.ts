@@ -63,6 +63,10 @@ export async function runKit(
       `${value.pagesUsed.length} pages used, hiring process ${value.hiringProcess ? "found" : "not found"}`,
   );
 
+  const allRequirementIds = extraction.requirements.map(
+    (requirement) => requirement.id,
+  );
+
   let questions = await trace.step(
     "generate-questions",
     () =>
@@ -71,7 +75,8 @@ export async function runKit(
           request,
           findings,
           requirements: extraction.requirements,
-          existingQuestionIds: [],
+          allRequirementIds: allRequirementIds,
+          existingQuestions: [],
           pass: 1,
         },
         context,
@@ -100,7 +105,8 @@ export async function runKit(
             request,
             findings,
             requirements: targets,
-            existingQuestionIds: questions.map((question) => question.id),
+            allRequirementIds,
+            existingQuestions: questions,
             pass: nextPass,
           },
           context,

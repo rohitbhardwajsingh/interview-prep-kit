@@ -4,6 +4,8 @@ import { parseCases } from "./cases";
 import { BATCH_REPORT_VERSION } from "./report";
 import { createFakePorts } from "../core/testing/fake-ports";
 import { buildQuestion, buildRequirement } from "../core/testing/builders";
+import { PIPELINE_ERROR_CODES } from "../core/pipeline/errors";
+import { LLM_ERROR_CODES, LlmError } from "../core/llm/types";
 
 const workingPorts = () =>
   createFakePorts({
@@ -109,6 +111,28 @@ describe("runBatch", () => {
 
     expect(report.kits[0]?.status).toBe("failed");
     expect(report.kits[0]?.error?.code).toBe("TIMEOUT");
+  });
+
+  it("reports a model failure as a generation failure, not as unknown", async () => {
+    const report = await runBatch({
+      cases: casesFrom([goodCase]),
+      ports: createFakePorts({
+        failOn: "extractRole",
+        failWith: new LlmError(
+          LLM_ERROR_CODES.RATE_LIMITED,
+          "quota exhausted for this minute",
+        ),
+      }),
+      concurrency: 1,
+      caseTimeoutMs: 5_000,
+    });
+
+    const error = report.kits[0]?.error;
+    expect(error?.code).toBe(PIPELINE_ERROR_CODES.GENERATION_FAILED);
+    // The provider's own reason survives into the report, so a failed batch is
+    // diagnosable from the output file alone.
+    expect(error?.message).toContain(LLM_ERROR_CODES.RATE_LIMITED);
+    expect(error?.message).toContain("quota exhausted");
   });
 
   it("records a malformed case without attempting to run it", async () => {

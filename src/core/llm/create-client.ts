@@ -44,6 +44,8 @@ export interface LlmConfig {
   model: string;
   requestsPerMinute: number;
   tokensPerMinute: number;
+  /** Overridden to reach a gateway, a proxy, or a local test double. */
+  baseUrl?: string;
 }
 
 const PROFILES: Record<Provider, ProviderProfile> = {
@@ -57,6 +59,7 @@ const PROFILES: Record<Provider, ProviderProfile> = {
         apiKey: config.apiKey,
         model: config.model,
         limiter: createRateLimiter(config),
+        ...(config.baseUrl ? { baseUrl: config.baseUrl } : {}),
         ...(fetchImpl ? { fetchImpl } : {}),
       }),
   },
@@ -70,6 +73,7 @@ const PROFILES: Record<Provider, ProviderProfile> = {
         apiKey: config.apiKey,
         model: config.model,
         limiter: createRateLimiter(config),
+        ...(config.baseUrl ? { baseUrl: config.baseUrl } : {}),
         ...(fetchImpl ? { fetchImpl } : {}),
       }),
   },
@@ -126,9 +130,12 @@ export function readLlmConfig(
     );
   }
 
+  const baseUrl = env["LLM_BASE_URL"]?.trim();
+
   return {
     provider,
     apiKey,
+    ...(baseUrl ? { baseUrl } : {}),
     model: env["LLM_MODEL"] ?? profile.defaultModel,
     requestsPerMinute: positiveNumber(
       env["LLM_REQUESTS_PER_MINUTE"],

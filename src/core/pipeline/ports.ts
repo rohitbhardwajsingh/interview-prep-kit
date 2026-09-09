@@ -40,7 +40,14 @@ export interface QuestionGenerationInput {
   findings: ResearchFindings;
   /** The requirements this call must produce questions for. */
   requirements: KitRequirement[];
-  existingQuestionIds: string[];
+  /**
+   * Every requirement id on the kit, not just the targeted ones. A later pass
+   * validates citations against this, so a question that also happens to cover
+   * an already-covered requirement keeps that reference instead of losing it.
+   */
+  allRequirementIds: string[];
+  /** Already-generated questions, so a later pass can avoid repeating them. */
+  existingQuestions: KitQuestion[];
   pass: number;
 }
 

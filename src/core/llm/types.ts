@@ -44,7 +44,12 @@ export interface StructuredRequest<T> {
   /** The specific ask for this call. Never contains untrusted text. */
   task: string;
   documents?: UntrustedDocument[];
-  schema: z.ZodType<T>;
+  /**
+   * Parsed from `unknown` rather than from `T`, so a schema may coerce and
+   * default its way from a loose reply to a strict shape. `T` is what the
+   * caller gets back, not what the model has to send.
+   */
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>;
   temperature?: number;
   maxOutputTokens?: number;
 }

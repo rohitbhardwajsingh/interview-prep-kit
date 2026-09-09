@@ -16,6 +16,8 @@ export interface FakePortsScript {
   flashcards?: KitFlashcard[];
   findings?: Partial<ResearchFindings>;
   failOn?: keyof KitPipelinePorts;
+  /** Thrown instead of a generic Error, to check how a fault is classified. */
+  failWith?: unknown;
   delayMs?: number;
 }
 
@@ -34,7 +36,8 @@ export function createFakePorts(script: FakePortsScript = {}): FakePorts {
 
   async function guard(port: keyof KitPipelinePorts): Promise<void> {
     if (script.delayMs) await delay(script.delayMs);
-    if (script.failOn === port) throw new Error(`${port} failed`);
+    if (script.failOn !== port) return;
+    throw script.failWith ?? new Error(`${port} failed`);
   }
 
   return {
