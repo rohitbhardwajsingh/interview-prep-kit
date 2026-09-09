@@ -1,0 +1,20 @@
+[
+  {
+    "id": "case-01",
+    "jd": "Senior Backend Engineer\n\nWe are looking for an engineer to own our routing service.\n\nRequirements:\n- 5+ years building production services in Go or Java\n- Strong experience with Postgres and query optimisation\n- Comfortable owning on-call for services you build\n\nNice to have:\n- Exposure to Kafka or another event bus\n- Experience mentoring junior engineers",
+    "company_url": "http://localhost:8099/acme/",
+    "days": 5
+  },
+  {
+    "id": "case-02",
+    "jd": "Frontend Engineer. React. Remote.",
+    "company_url": "http://localhost:8099/thin/",
+    "days": 1
+  },
+  {
+    "id": "case-03",
+    "jd": "Staff Platform Engineer\n\nYou will design multi-region infrastructure and lead the migration off our legacy deployment tooling.\n\nMust have:\n- Deep Kubernetes operational experience\n- Terraform at scale\n- Track record leading cross-team technical projects\n\nBonus points for:\n- Prior work on developer platforms",
+    "company_url": "http://localhost:8099/no-careers-page/",
+    "days": 60
+  }
+]

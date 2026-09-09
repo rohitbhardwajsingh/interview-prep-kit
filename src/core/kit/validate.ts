@@ -14,8 +14,16 @@ export const KIT_ISSUE_CODES = {
 
 export type KitIssueCode = (typeof KIT_ISSUE_CODES)[keyof typeof KIT_ISSUE_CODES];
 
+/**
+ * An error means the kit is malformed and must not be saved. A warning means it
+ * is structurally sound but thinner than hoped — an honestly recorded gap,
+ * which the brief treats as a usable kit rather than a failed case.
+ */
+export type KitIssueSeverity = "error" | "warning";
+
 export interface KitIssue {
   code: KitIssueCode;
+  severity: KitIssueSeverity;
   path: string;
   message: string;
 }
@@ -24,6 +32,14 @@ export interface KitValidationResult {
   ok: boolean;
   issues: KitIssue[];
   kit: Kit | null;
+}
+
+export function errorsOf(issues: readonly KitIssue[]): KitIssue[] {
+  return issues.filter((issue) => issue.severity === "error");
+}
+
+export function warningsOf(issues: readonly KitIssue[]): KitIssue[] {
+  return issues.filter((issue) => issue.severity === "warning");
 }
 
 function collectDuplicateIds(
@@ -36,6 +52,7 @@ function collectDuplicateIds(
     if (seen.has(id)) {
       issues.push({
         code: KIT_ISSUE_CODES.DUPLICATE_ID,
+        severity: "error",
         path,
         message: `Duplicate id "${id}"`,
       });
@@ -61,6 +78,7 @@ function checkReferences(kit: Kit, issues: KitIssue[]): void {
       if (requirementIds.has(referenced)) continue;
       issues.push({
         code: KIT_ISSUE_CODES.UNKNOWN_REQUIREMENT_REFERENCE,
+        severity: "error",
         path: `questions[${index}].requirement_ids`,
         message: `Question "${question.id}" references unknown requirement "${referenced}"`,
       });
@@ -72,6 +90,7 @@ function checkReferences(kit: Kit, issues: KitIssue[]): void {
       if (requirementIds.has(referenced)) continue;
       issues.push({
         code: KIT_ISSUE_CODES.UNKNOWN_REQUIREMENT_REFERENCE,
+        severity: "error",
         path: `flashcards[${index}].requirement_ids`,
         message: `Flashcard "${flashcard.id}" references unknown requirement "${referenced}"`,
       });
@@ -83,6 +102,7 @@ function checkReferences(kit: Kit, issues: KitIssue[]): void {
       if (questionIds.has(referenced)) continue;
       issues.push({
         code: KIT_ISSUE_CODES.UNKNOWN_QUESTION_REFERENCE,
+        severity: "error",
         path: `schedule.days[${index}].question_ids`,
         message: `Day ${day.day} references unknown question "${referenced}"`,
       });
@@ -96,6 +116,7 @@ function checkSchedule(kit: Kit, issues: KitIssue[]): void {
   if (days.length !== daysAvailable) {
     issues.push({
       code: KIT_ISSUE_CODES.SCHEDULE_LENGTH_MISMATCH,
+      severity: "error",
       path: "schedule.days",
       message: `Schedule spans ${days.length} days but ${daysAvailable} were requested`,
     });
@@ -105,6 +126,7 @@ function checkSchedule(kit: Kit, issues: KitIssue[]): void {
     if (day.day === index + 1) return;
     issues.push({
       code: KIT_ISSUE_CODES.SCHEDULE_DAY_SEQUENCE,
+      severity: "error",
       path: `schedule.days[${index}].day`,
       message: `Expected day ${index + 1}, found day ${day.day}`,
     });
@@ -119,32 +141,42 @@ function checkCoverageHonesty(kit: Kit, issues: KitIssue[]): void {
   if (recorded.join("|") !== actual.join("|")) {
     issues.push({
       code: KIT_ISSUE_CODES.COVERAGE_MISMATCH,
+      severity: "error",
       path: "coverage.uncovered_requirement_ids",
       message: `Recorded [${recorded.join(", ")}] but questions leave [${actual.join(", ")}] uncovered`,
     });
   }
 }
 
+/**
+ * A must-have that has a question but never reaches a day means the allocator
+ * dropped material, which is a bug. A must-have with no question at all is a
+ * coverage gap the kit already reports, so it is only a warning here.
+ */
 function checkMustHavesAreScheduled(kit: Kit, issues: KitIssue[]): void {
-  const scheduled = new Set(
-    kit.schedule.days.flatMap((day) => day.question_ids),
-  );
-  const answering = new Map<string, boolean>();
+  const scheduled = new Set(kit.schedule.days.flatMap((day) => day.question_ids));
+  const withAnyQuestion = new Set<string>();
+  const withScheduledQuestion = new Set<string>();
 
   for (const question of kit.questions) {
-    if (!scheduled.has(question.id)) continue;
     for (const referenced of question.requirement_ids) {
-      answering.set(referenced, true);
+      withAnyQuestion.add(referenced);
+      if (scheduled.has(question.id)) withScheduledQuestion.add(referenced);
     }
   }
 
   for (const requirement of kit.role.requirements) {
     if (requirement.priority !== "must") continue;
-    if (answering.get(requirement.id)) continue;
+    if (withScheduledQuestion.has(requirement.id)) continue;
+
+    const hasQuestion = withAnyQuestion.has(requirement.id);
     issues.push({
       code: KIT_ISSUE_CODES.UNSCHEDULED_MUST_REQUIREMENT,
+      severity: hasQuestion ? "error" : "warning",
       path: "schedule.days",
-      message: `Must-have requirement "${requirement.id}" has no scheduled question`,
+      message: hasQuestion
+        ? `Must-have requirement "${requirement.id}" has a question that never reaches the schedule`
+        : `Must-have requirement "${requirement.id}" has no question to schedule`,
     });
   }
 }
@@ -162,6 +194,7 @@ export function validateKit(input: unknown): KitValidationResult {
       kit: null,
       issues: parsed.error.issues.map((issue) => ({
         code: KIT_ISSUE_CODES.SCHEMA,
+        severity: "error" as const,
         path: issue.path.join("."),
         message: issue.message,
       })),
@@ -176,5 +209,5 @@ export function validateKit(input: unknown): KitValidationResult {
   checkCoverageHonesty(kit, issues);
   checkMustHavesAreScheduled(kit, issues);
 
-  return { ok: issues.length === 0, issues, kit };
+  return { ok: errorsOf(issues).length === 0, issues, kit };
 }

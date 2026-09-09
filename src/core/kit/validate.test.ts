@@ -123,6 +123,22 @@ describe("validateKit", () => {
     );
   });
 
+  it("treats a must-have with no question at all as a warning, not a rejection", () => {
+    const kit = buildKit({
+      requirements: [buildRequirement("r1"), buildRequirement("r2")],
+      questions: [buildQuestion("q1", ["r1"])],
+    });
+
+    const result = validateKit(kit);
+    const unscheduled = result.issues.filter(
+      (issue) => issue.code === KIT_ISSUE_CODES.UNSCHEDULED_MUST_REQUIREMENT,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(unscheduled).toHaveLength(1);
+    expect(unscheduled[0]?.severity).toBe("warning");
+  });
+
   it("does not require a nice-to-have requirement to be scheduled", () => {
     const kit = buildKit({
       requirements: [
