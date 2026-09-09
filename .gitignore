@@ -1,7 +1,11 @@
 node_modules/
-dist/
-out/
-coverage/
+
+# Anchored to the repository root so they cannot match source directories such
+# as src/core/coverage.
+/dist/
+/out/
+/coverage/
+
 .env
 .env.local
 *.log
