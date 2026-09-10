@@ -1,0 +1,62 @@
+# Render blueprint: two web services (API + web) that pair with a free
+# MongoDB Atlas cluster. Deploy with Render → Blueprints → New Blueprint Instance
+# pointed at this repo, then fill the values marked "set in dashboard" below.
+#
+# See DEPLOY.md for the exact, ordered steps (there is a deliberate two-pass
+# order because each service needs the other's public URL).
+
+services:
+  # ---------------------------------------------------------------- API ---
+  - type: web
+    name: prepkit-api
+    runtime: node
+    plan: free
+    # Installs dev+prod deps; the server runs via tsx, which is a runtime dep.
+    buildCommand: npm ci
+    startCommand: npm run start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20.11.1"
+      - key: NODE_ENV
+        value: production
+      # Render injects PORT automatically; the server reads it.
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: MONGO_DB
+        value: prepkit
+      # --- set in dashboard (secrets / cross-service URLs) ---
+      # Atlas SRV connection string, e.g. mongodb+srv://user:pass@cluster/...
+      - key: MONGO_URL
+        sync: false
+      # The web service's public URL, e.g. https://prepkit-web.onrender.com
+      # (no trailing slash). Needed for CORS + cross-site cookies.
+      - key: WEB_ORIGIN
+        sync: false
+      # LLM: Gemini has a genuine free tier and is the default provider.
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+
+  # ---------------------------------------------------------------- WEB ---
+  - type: web
+    name: prepkit-web
+    runtime: node
+    plan: free
+    rootDir: web
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20.11.1"
+      - key: NODE_ENV
+        value: production
+      # --- set in dashboard ---
+      # The API service's public URL, e.g. https://prepkit-api.onrender.com
+      # (no trailing slash). Baked into the client at build time, so changing
+      # it requires a redeploy of this service.
+      - key: NEXT_PUBLIC_API_URL
+        sync: false

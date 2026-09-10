@@ -81,7 +81,11 @@ export function createApp(dependencies: AppDependencies): BuiltApp {
       cookie: {
         // Not readable from JavaScript, so an injected script cannot steal it.
         httpOnly: true,
-        sameSite: "lax",
+        // In production the web app and the API are served from different
+        // hosts, so the cookie has to be allowed cross-site — which the browser
+        // only permits when it is also Secure. In development they share
+        // localhost, where Lax is both sufficient and works without HTTPS.
+        sameSite: config.isProduction ? "none" : "lax",
         secure: config.isProduction,
         maxAge: SESSION_TTL_MS,
         path: "/",
