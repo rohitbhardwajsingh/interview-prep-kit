@@ -4,6 +4,7 @@ import Link from "next/link";
 import { GenerationProgress } from "@/components/generation-progress";
 import { useKitContext } from "@/components/kit-provider";
 import { ReadinessPanel } from "@/components/readiness-panel";
+import { TimeBudget } from "@/components/time-budget";
 import { formatCivilDate, formatMinutes, plural } from "@/lib/format";
 import { useToday } from "@/lib/use-today";
 
@@ -150,11 +151,22 @@ export default function TodayPage() {
             Start practising
             <kbd className="kbd border-white/30 bg-white/10 text-white">P</kbd>
           </Link>
+          <Link href={`/kits/${kitId}/mock`} className="btn-ghost">
+            Sit a mock
+            <kbd className="kbd">M</kbd>
+          </Link>
           <Link href={`/kits/${kitId}/evidence`} className="btn-ghost">
             Check my stories
           </Link>
         </div>
       </section>
+
+      {/* Sits directly under the day's plan, because the honest reason people
+          skip a plan is not disagreement with it but not having the hour it
+          assumes. */}
+      <div style={{ "--i": 3 } as React.CSSProperties}>
+        <TimeBudget kitId={kitId} />
+      </div>
 
       {/* Only shown when it changes what the user should do. A replan notice
           on a plan nobody has fallen behind on is noise. */}
@@ -162,7 +174,7 @@ export default function TodayPage() {
         replan.deferredQuestionIds.length > 0) && (
         <section
           className="card-quiet p-5"
-          style={{ "--i": 3 } as React.CSSProperties}
+          style={{ "--i": 4 } as React.CSSProperties}
         >
           <p className="label">Your plan was recut</p>
           <p className="mt-2 text-sm text-dim">{replan.summary}</p>
@@ -178,7 +190,7 @@ export default function TodayPage() {
       {readiness.blockers.length > 0 && (
         <section
           className="card-quiet p-5"
-          style={{ "--i": 4 } as React.CSSProperties}
+          style={{ "--i": 5 } as React.CSSProperties}
         >
           <p className="label">What is holding the score down</p>
           <ul className="mt-3 space-y-1.5">

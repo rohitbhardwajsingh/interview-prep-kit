@@ -100,6 +100,38 @@ export interface Calibration {
   summary: string;
 }
 
+/**
+ * One attempt's prediction against its measurement.
+ *
+ * Exported so the API can hand the comparison to the client already made.
+ * The alternative was shipping the score bands and the threshold to the
+ * browser, which would put two copies of the rule in two languages and
+ * guarantee they drift.
+ */
+export interface PredictionGap {
+  claimed: number;
+  measured: number;
+  /** Positive when the answer was weaker than it felt. */
+  gap: number;
+  /** Whether the gap is large enough to be worth remarking on. */
+  surprising: boolean;
+}
+
+export function comparePrediction(
+  selfRating: number,
+  measuredScore: number,
+): PredictionGap {
+  const claimed = CLAIMED_SCORE[clampRating(selfRating)] ?? 50;
+  const gap = claimed - measuredScore;
+
+  return {
+    claimed,
+    measured: measuredScore,
+    gap,
+    surprising: Math.abs(gap) >= MEANINGFUL_GAP,
+  };
+}
+
 function mean(values: readonly number[]): number {
   if (values.length === 0) return 0;
   return values.reduce((sum, value) => sum + value, 0) / values.length;

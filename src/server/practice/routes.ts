@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { TARGET_SECONDS } from "../../core/answer/analyse";
 import {
   buildQueue,
   initialState,
@@ -59,10 +60,25 @@ export function practiceRoutes(store: Store): Router {
         (question) => byQuestion.get(question.id) ?? initialState(question.id),
       );
 
+      const categories = new Map(
+        (record.kit?.questions ?? []).map((question) => [
+          question.id,
+          question.category,
+        ]),
+      );
+
       response.json({
         day: today,
         daysAvailable: record.request.days,
-        queue: buildQueue(states, today).map((item) => item.state),
+        // The target window travels with the queue so the recorder can show
+        // a live clock against it. Duplicating the table in the browser
+        // would leave two versions of the same judgement to drift apart.
+        queue: buildQueue(states, today).map((item) => ({
+          ...item.state,
+          targetSeconds:
+            TARGET_SECONDS[categories.get(item.questionId) ?? ""] ??
+            TARGET_SECONDS["technical"],
+        })),
         progress: summarise(states, today),
       });
     }),

@@ -52,7 +52,12 @@ const ACTION_CUES = [
  */
 export const COMFORTABLE_WPM = { low: 110, high: 175 } as const;
 
-/** How long a strong answer runs, by category, in seconds. */
+/**
+ * How long a strong answer runs, by category, in seconds.
+ *
+ * Also sent to the client with the practice queue, so the live clock during
+ * an answer is measured against the same window the analysis will use.
+ */
 export const TARGET_SECONDS: Readonly<Record<string, [number, number]>> = {
   behavioural: [75, 150],
   technical: [60, 150],

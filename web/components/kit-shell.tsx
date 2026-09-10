@@ -19,6 +19,8 @@ const SECTIONS: Section[] = [
   { segment: "plan", label: "Plan", key: "l" },
   { segment: "questions", label: "Questions", key: "q" },
   { segment: "practice", label: "Practise", key: "p" },
+  { segment: "mock", label: "Mock", key: "m" },
+  { segment: "calibration", label: "Calibration", key: "k" },
   { segment: "evidence", label: "Evidence", key: "e" },
   { segment: "company", label: "Company", key: "c" },
 ];

@@ -38,6 +38,35 @@ const SCRIPT: FakePortsScript = {
   flashcards: [buildFlashcard("f1", ["r1"])],
 };
 
+/** Several questions across categories, for triage and mock selection. */
+const WIDE_SCRIPT: FakePortsScript = {
+  requirements: [
+    buildRequirement("r1", { text: "Postgres at scale" }),
+    buildRequirement("r2", { text: "Mentoring", priority: "nice" }),
+  ],
+  questionsByPass: [
+    [
+      buildQuestion("q1", ["r1"], {
+        prompt: "Tell me about a slow query you fixed.",
+        answer_outline: OUTLINE,
+        category: "behavioural",
+        difficulty: 2,
+      }),
+      buildQuestion("q2", ["r1"], {
+        prompt: "How would you shard this table?",
+        category: "system-design",
+        difficulty: 3,
+      }),
+      buildQuestion("q3", ["r2"], {
+        prompt: "How do you give difficult feedback?",
+        category: "behavioural",
+        difficulty: 1,
+      }),
+    ],
+  ],
+  flashcards: [buildFlashcard("f1", ["r1"])],
+};
+
 /** Reaches every outline point and names real figures, so it scores well. */
 const STRONG = [
   "The dashboard was timing out, so I measured it first: the slow query was a",
@@ -76,8 +105,8 @@ describe.skipIf(!available)("attempt routes", () => {
     await Promise.all(open.splice(0).map((harness) => harness.close()));
   });
 
-  async function generated(llm?: LlmClient) {
-    const harness = await createHarness(createFakePorts(SCRIPT), {
+  async function generated(llm?: LlmClient, script: FakePortsScript = SCRIPT) {
+    const harness = await createHarness(createFakePorts(script), {
       ...(llm ? { llm } : {}),
     });
     open.push(harness);
@@ -315,6 +344,129 @@ describe.skipIf(!available)("attempt routes", () => {
 
       expect(response.body.calibration.attempts).toBe(1);
       expect(response.body.calibration.blindSpots).toEqual([]);
+    });
+  });
+
+  describe("triage", () => {
+    it("names the most valuable work that fits the time given", async () => {
+      const { agent, kitId } = await generated(undefined, WIDE_SCRIPT);
+
+      const response = await agent
+        .get(`/kits/${kitId}/triage?minutes=10`)
+        .expect(200);
+
+      // Answering costs four minutes, so ten minutes buys two of three.
+      expect(response.body.actions).toHaveLength(2);
+      expect(response.body.deferred).toBe(1);
+      // Must-haves lead an untouched kit.
+      expect(
+        response.body.actions.map((action: { questionId: string }) => action.questionId),
+      ).not.toContain("q3");
+    });
+
+    it("gives every choice a reason", async () => {
+      const { agent, kitId } = await generated(undefined, WIDE_SCRIPT);
+
+      const response = await agent.get(`/kits/${kitId}/triage`).expect(200);
+
+      for (const action of response.body.actions) {
+        expect(action.reason).toBeTruthy();
+      }
+    });
+
+    it("raises a question whose must-have has no story behind it", async () => {
+      const { agent, kitId } = await generated(undefined, WIDE_SCRIPT);
+
+      const response = await agent.get(`/kits/${kitId}/triage`).expect(200);
+
+      // No stories exist yet, so every requirement is unevidenced.
+      expect(response.body.actions[0]?.reason).toContain("no story");
+    });
+
+    it("brings a blind spot to the front once one exists", async () => {
+      const { agent, kitId } = await generated(undefined, WIDE_SCRIPT);
+
+      // Rated top marks on an answer that measures poorly.
+      await agent
+        .post(`/kits/${kitId}/answers/q3`)
+        .send({
+          transcript: "Um, so basically I sort of just, like, tell them honestly I guess.",
+          selfRating: 5,
+        })
+        .expect(201);
+
+      const response = await agent.get(`/kits/${kitId}/triage`).expect(200);
+
+      expect(response.body.actions[0]?.questionId).toBe("q3");
+      expect(response.body.actions[0]?.reason).toContain("rated this well above");
+    });
+
+    it("falls back to a sensible budget when asked for nonsense", async () => {
+      const { agent, kitId } = await generated(undefined, WIDE_SCRIPT);
+
+      const response = await agent
+        .get(`/kits/${kitId}/triage?minutes=banana`)
+        .expect(200);
+
+      expect(response.body.actions.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("mock interview", () => {
+    it("returns a spread of questions without their outlines", async () => {
+      const { agent, kitId } = await generated(undefined, WIDE_SCRIPT);
+
+      const response = await agent.get(`/kits/${kitId}/mock`).expect(200);
+
+      expect(response.body.questions).toHaveLength(3);
+      // The outline is the answer, so it must not reach a mock interview.
+      for (const question of response.body.questions) {
+        expect(question.answer_outline).toBeUndefined();
+      }
+    });
+
+    it("opens with the easiest question", async () => {
+      const { agent, kitId } = await generated(undefined, WIDE_SCRIPT);
+
+      const response = await agent.get(`/kits/${kitId}/mock`).expect(200);
+
+      const difficulties = response.body.questions.map(
+        (question: { difficulty: number }) => question.difficulty,
+      );
+      expect(difficulties).toEqual([...difficulties].sort());
+    });
+
+    it("does not touch the practice schedule", async () => {
+      const { agent, kitId } = await generated(undefined, WIDE_SCRIPT);
+
+      // A mock answer sends no day, so the spacing is left alone.
+      await agent
+        .post(`/kits/${kitId}/answers/q1`)
+        .send({ transcript: STRONG, selfRating: 4 })
+        .expect(201);
+
+      const practice = await agent
+        .get(`/kits/${kitId}/practice?day=1`)
+        .expect(200);
+
+      expect(practice.body.progress.attempted).toBe(0);
+    });
+  });
+
+  describe("the practice queue", () => {
+    it("carries the target window each question is measured against", async () => {
+      const { agent, kitId } = await generated(undefined, WIDE_SCRIPT);
+
+      const response = await agent
+        .get(`/kits/${kitId}/practice?day=1`)
+        .expect(200);
+
+      // Behavioural and system-design have different windows, and the client
+      // must not have to know which is which.
+      for (const item of response.body.queue) {
+        expect(item.targetSeconds).toHaveLength(2);
+        expect(item.targetSeconds[0]).toBeLessThan(item.targetSeconds[1]);
+      }
     });
   });
 });

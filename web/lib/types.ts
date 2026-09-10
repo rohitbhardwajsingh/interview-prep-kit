@@ -191,3 +191,88 @@ export interface EvidenceReport {
   unused_story_ids: string[];
   overused_story_ids: string[];
 }
+
+/** One line of the outline, and whether the answer actually reached it. */
+export interface OutlinePoint {
+  text: string;
+  covered: boolean;
+  matched: string[];
+}
+
+export interface Pacing {
+  wordCount: number;
+  spokenSeconds: number | null;
+  wordsPerMinute: number | null;
+  targetSeconds: [number, number];
+  verdict: "too-short" | "good" | "too-long" | "unknown";
+  secondsToFirstSpecific: number | null;
+}
+
+/** Measured, not judged: every field here is reproducible from the words. */
+export interface AnswerAnalysis {
+  points: OutlinePoint[];
+  coverage: number;
+  specifics: string[];
+  fillers: { word: string; count: number }[];
+  fillerRatePer100: number;
+  hedges: string[];
+  star: { situation: boolean; action: boolean; result: boolean; applies: boolean };
+  pacing: Pacing;
+  score: number;
+  notes: string[];
+}
+
+/** The model's read on whether the answer had substance behind the words. */
+export interface AnswerJudgement {
+  substance: "strong" | "thin" | "off-target";
+  verdict: string;
+  strongest: string;
+  gap: string;
+  follow_up: string;
+  cut: string | null;
+}
+
+/**
+ * The prediction against the measurement, compared server-side so the score
+ * bands and the threshold live in one place rather than two.
+ */
+export interface PredictionGap {
+  claimed: number;
+  measured: number;
+  /** Positive when the answer was weaker than it felt. */
+  gap: number;
+  surprising: boolean;
+}
+
+export interface Attempt {
+  id: string;
+  questionId: string;
+  transcript: string;
+  source: "voice" | "typed";
+  spokenSeconds: number | null;
+  selfRating: number;
+  analysis: AnswerAnalysis;
+  judgement: AnswerJudgement | null;
+  prediction: PredictionGap;
+  createdAt: string;
+}
+
+export interface BlindSpot {
+  questionId: string;
+  prompt: string;
+  category: string;
+  selfRating: number;
+  measuredScore: number;
+  gap: number;
+}
+
+export interface Calibration {
+  attempts: number;
+  verdict: "overconfident" | "calibrated" | "underconfident" | "unknown";
+  averageGap: number;
+  averageClaimed: number;
+  averageMeasured: number;
+  blindSpots: BlindSpot[];
+  byCategory: { category: string; attempts: number; averageGap: number }[];
+  summary: string;
+}
