@@ -45,37 +45,39 @@
   }
 
   .card-interactive {
-    @apply card transition duration-200 ease-spring hover:border-line-strong
-      hover:shadow-float focus-within:border-line-strong;
+    @apply card transition duration-200 ease-spring hover:-translate-y-0.5
+      hover:border-line-strong hover:shadow-float focus-within:border-line-strong;
   }
 
   .btn {
     @apply inline-flex select-none items-center justify-center gap-2 rounded-xl
-      px-4 py-2.5 text-sm font-medium transition duration-150 ease-spring
-      active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40;
+      px-4 py-2.5 text-sm font-semibold transition duration-150 ease-spring
+      active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40;
   }
 
   .btn-primary {
-    @apply btn bg-accent text-white shadow-glow hover:bg-accent-hover;
+    @apply btn bg-accent-grad text-white shadow-glow hover:brightness-110
+      hover:shadow-[0_12px_44px_-8px_rgba(139,92,255,0.65)];
   }
 
   .btn-ghost {
-    @apply btn border border-line bg-surface text-paper hover:border-line-strong
-      hover:bg-surface-high;
+    @apply btn border border-line bg-surface-high/60 text-paper
+      hover:border-line-strong hover:bg-surface-high;
   }
 
   .btn-bare {
-    @apply btn px-2 py-1 text-dim hover:bg-surface-high hover:text-paper;
+    @apply btn px-2 py-1 font-medium text-dim hover:bg-surface-high hover:text-paper;
   }
 
   .field {
     @apply w-full rounded-xl border border-line bg-void px-3.5 py-2.5 text-sm
-      text-paper transition placeholder:text-faint focus:border-accent;
+      text-paper transition placeholder:text-faint focus:border-accent
+      focus:ring-2 focus:ring-accent/30;
   }
 
   .chip {
     @apply inline-flex items-center gap-1 rounded-full border px-2 py-0.5
-      text-[11px] font-medium uppercase tracking-wide;
+      text-[11px] font-semibold uppercase tracking-wide;
   }
 
   /* A hint that a key does something, sized to sit inline in a sentence. */
@@ -86,7 +88,16 @@
   }
 
   .label {
-    @apply text-[11px] font-medium uppercase tracking-[0.08em] text-faint;
+    @apply text-[11px] font-semibold uppercase tracking-[0.1em] text-faint;
+  }
+
+  /* A big, obviously-tappable tile for primary navigation choices. Pair with
+     the `group` class in markup for the child hover effects. */
+  .tile {
+    @apply relative flex flex-col gap-3 overflow-hidden rounded-2xl border
+      border-line bg-gradient-to-b from-surface-raised to-surface p-5 text-left
+      shadow-raise transition duration-200 ease-spring hover:-translate-y-1
+      hover:border-line-strong hover:shadow-float;
   }
 
   /* Placeholder for content that is on its way. */

@@ -21,10 +21,14 @@ const COPY: Record<Provenance, { label: string; title: string; tone: string }> =
 };
 
 /**
- * The provenance states are only trustworthy if they are visible, so every
- * item says whether a regeneration would replace it.
+ * The provenance states are only trustworthy if they are visible, so an item
+ * that would survive a rebuild says so. "Generated" is the default and gets
+ * no badge: badging every model-written item just adds noise to a list that
+ * is mostly model-written, and the absence of a badge already means it.
  */
 export function ProvenanceBadge({ state }: { state: Provenance }) {
+  if (state === "generated") return null;
+
   const copy = COPY[state];
   return (
     <span className={`chip ${copy.tone}`} title={copy.title}>

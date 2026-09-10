@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Plus, Sparkles } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { formatCivilDate } from "@/lib/format";
 import type { KitSummary } from "@/lib/types";
@@ -88,6 +89,7 @@ export default function KitsPage() {
           </p>
         </div>
         <Link href="/kits/new" className="btn-primary">
+          <Plus className="h-4 w-4" />
           New kit
         </Link>
       </div>
@@ -106,13 +108,17 @@ export default function KitsPage() {
       )}
 
       {kits?.length === 0 && (
-        <div className="card mt-8 p-8 text-center">
-          <p className="font-medium">Nothing here yet</p>
+        <div className="card mt-8 p-10 text-center">
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-accent-soft text-accent">
+            <Sparkles className="h-6 w-6" />
+          </span>
+          <p className="mt-4 text-lg font-semibold">Nothing here yet</p>
           <p className="mx-auto mt-1.5 max-w-sm text-sm text-dim">
-            Paste a job posting and the company&apos;s website, and say how many
-            days you have. The rest is automatic.
+            Paste a job posting and the company&apos;s website, pick the
+            interview date, and the rest builds itself.
           </p>
-          <Link href="/kits/new" className="btn-primary mt-5">
+          <Link href="/kits/new" className="btn-primary mt-6">
+            <Plus className="h-4 w-4" />
             Build your first kit
           </Link>
         </div>

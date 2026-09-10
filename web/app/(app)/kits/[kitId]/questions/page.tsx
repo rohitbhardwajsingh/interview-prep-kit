@@ -7,6 +7,7 @@ import { KitNotReady } from "@/components/kit-not-ready";
 import { ProvenanceBadge } from "@/components/provenance-badge";
 import { QuestionCard } from "@/components/question-card";
 import { SectionToolbar } from "@/components/section-toolbar";
+import { categoryMeta } from "@/lib/categories";
 import type { Question } from "@/lib/types";
 
 const CATEGORIES = [
@@ -59,22 +60,35 @@ export default function QuestionsPage() {
             aria-label="Filter questions"
             className="field max-w-xs"
           />
-          <div className="flex flex-wrap gap-1">
-            {CATEGORIES.map((entry) => (
-              <button
-                key={entry}
-                type="button"
-                onClick={() => setCategory(entry)}
-                aria-pressed={category === entry}
-                className={`rounded-lg px-2.5 py-1.5 text-xs transition ${
-                  category === entry
-                    ? "bg-surface-high text-paper"
-                    : "text-faint hover:text-paper"
-                }`}
-              >
-                {entry}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-1.5">
+            {CATEGORIES.map((entry) => {
+              const active = category === entry;
+              const meta = entry === "all" ? null : categoryMeta(entry);
+              const count =
+                entry === "all"
+                  ? body.questions.length
+                  : body.questions.filter((q) => q.category === entry).length;
+              return (
+                <button
+                  key={entry}
+                  type="button"
+                  onClick={() => setCategory(entry)}
+                  aria-pressed={active}
+                  className={`inline-flex items-center gap-1.5 rounded-lg border
+                    px-2.5 py-1.5 text-xs font-medium transition ${
+                      active
+                        ? "border-line-strong bg-surface-high text-paper"
+                        : "border-transparent text-faint hover:bg-surface-high hover:text-paper"
+                    }`}
+                >
+                  {meta ? (
+                    <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
+                  ) : null}
+                  {meta ? meta.label : "All"}
+                  <span className="tnum text-faint">{count}</span>
+                </button>
+              );
+            })}
           </div>
           <span className="ml-auto text-xs text-faint">
             {shown.length} of {body.questions.length}

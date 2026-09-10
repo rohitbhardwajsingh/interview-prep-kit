@@ -16,39 +16,71 @@ import type { Config } from "tailwindcss";
  */
 const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
+  // Category colours are chosen at runtime from the question's category, so
+  // the class names never appear literally for the scanner to find.
+  safelist: [
+    "text-technical",
+    "text-behavioural",
+    "text-system-design",
+    "text-company-fit",
+    "bg-technical",
+    "bg-behavioural",
+    "bg-system-design",
+    "bg-company-fit",
+    "border-technical",
+    "border-behavioural",
+    "border-system-design",
+    "border-company-fit",
+  ],
   theme: {
     extend: {
       colors: {
-        // Stacked surfaces, darkest first.
-        void: "#06070b",
+        // Stacked surfaces, darkest first. Lifted a touch from pure black so
+        // cards read as objects with weight rather than holes.
+        void: "#080a11",
         surface: {
-          DEFAULT: "#0c0e15",
-          raised: "#12151f",
-          high: "#1a1e2b",
+          DEFAULT: "#11141f",
+          raised: "#171b28",
+          high: "#222738",
         },
         line: {
-          DEFAULT: "#1c2130",
-          strong: "#2a3145",
+          DEFAULT: "#262c3d",
+          strong: "#3a4257",
         },
-        // Text, brightest first.
-        paper: "#eef1f8",
-        dim: "#98a2ba",
-        faint: "#5c6580",
+        // Text, brightest first. dim and faint are deliberately brighter than
+        // a typical dark theme: this app is read under stress, and low
+        // contrast is the first thing that makes it feel hard.
+        paper: "#f2f4fa",
+        dim: "#c2c9db",
+        faint: "#8b93ac",
 
         accent: {
-          DEFAULT: "#7c5cff",
-          hover: "#8f74ff",
-          soft: "#1a1633",
+          DEFAULT: "#8b5cff",
+          hover: "#9d76ff",
+          soft: "#211a3d",
+        },
+        // A second, cooler accent so the interface is not monochrome violet.
+        // Used for calm/positive motion (progress, completion, evidence).
+        cyan: {
+          DEFAULT: "#22d3ee",
+          soft: "#0c2830",
         },
 
         // Provenance: quiet when generated, yours when edited, held when pinned.
-        generated: "#7e879e",
+        generated: "#8b93ac",
         edited: "#4ea1ff",
         pinned: "#ffb347",
 
-        good: "#3ddc97",
+        good: "#34e0a1",
         warn: "#ffb347",
-        bad: "#ff5c7c",
+        bad: "#ff6b88",
+
+        // Question categories, so the eye can sort a long list by colour
+        // before reading a word of it.
+        technical: "#4ea1ff",
+        behavioural: "#8b5cff",
+        "system-design": "#ffb347",
+        "company-fit": "#34e0a1",
       },
       fontFamily: {
         sans: [
@@ -71,7 +103,13 @@ const config: Config = {
         raise: "0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -12px rgba(0,0,0,0.8)",
         float:
           "0 4px 12px rgba(0,0,0,0.5), 0 24px 64px -24px rgba(0,0,0,0.9)",
-        glow: "0 0 0 1px rgba(124,92,255,0.3), 0 8px 32px -8px rgba(124,92,255,0.4)",
+        glow: "0 0 0 1px rgba(139,92,255,0.35), 0 10px 40px -10px rgba(139,92,255,0.5)",
+        "glow-cyan": "0 0 0 1px rgba(34,211,238,0.3), 0 10px 40px -12px rgba(34,211,238,0.4)",
+      },
+      backgroundImage: {
+        "accent-grad": "linear-gradient(135deg, #8b5cff 0%, #6d3cff 100%)",
+        "hero-grad":
+          "radial-gradient(130% 100% at 0% 0%, rgba(139,92,255,0.22) 0%, transparent 55%), radial-gradient(120% 100% at 100% 0%, rgba(34,211,238,0.12) 0%, transparent 50%)",
       },
       transitionTimingFunction: {
         // Slight overshoot: things arrive rather than merely appearing.
