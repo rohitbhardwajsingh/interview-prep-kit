@@ -1,7 +1,9 @@
 import MongoStore from "connect-mongo";
 import express, { type Express } from "express";
 import session from "express-session";
+import type { LlmClient } from "../core/llm/types";
 import type { KitPipelinePorts } from "../core/pipeline/ports";
+import { attemptRoutes } from "./attempts/routes";
 import { authRoutes } from "./auth/routes";
 import type { ServerConfig } from "./config";
 import type { Store } from "./db";
@@ -19,6 +21,12 @@ export interface AppDependencies {
   store: Store;
   ports: KitPipelinePorts;
   runner?: JobRunner;
+  /**
+   * Used to judge a spoken answer. Separate from `ports` because that is the
+   * kit-generation pipeline, and answer review is not part of it: a kit is
+   * generated once, whereas answers are reviewed all through the week.
+   */
+  llm?: LlmClient;
 }
 
 export interface BuiltApp {
@@ -89,6 +97,10 @@ export function createApp(dependencies: AppDependencies): BuiltApp {
   app.use("/kits", kitRoutes(store, runner));
   // Mounted under /kits too, so practice state is addressed alongside its kit.
   app.use("/kits", practiceRoutes(store));
+  app.use(
+    "/kits",
+    attemptRoutes({ store, ...(dependencies.llm ? { llm: dependencies.llm } : {}) }),
+  );
   app.use("/stories", storyRoutes(store));
 
   app.use(notFoundHandler);

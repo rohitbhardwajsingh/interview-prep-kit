@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Express } from "express";
+import type { LlmClient } from "../../core/llm/types";
 import type { KitPipelinePorts } from "../../core/pipeline/ports";
 import { createApp } from "../app";
 import type { ServerConfig } from "../config";
@@ -77,7 +78,7 @@ export async function mongoAvailable(): Promise<boolean> {
 
 export async function createHarness(
   ports: KitPipelinePorts,
-  overrides: { timeoutMs?: number } = {},
+  overrides: { timeoutMs?: number; llm?: LlmClient } = {},
 ): Promise<Harness> {
   const mongo = await resolveMongo();
   if (!mongo) throw new Error("No Mongo is reachable and none could be started");
@@ -101,7 +102,13 @@ export async function createHarness(
     ports,
     timeoutMs: overrides.timeoutMs ?? 5_000,
   });
-  const { app } = createApp({ config, store, ports, runner });
+  const { app } = createApp({
+    config,
+    store,
+    ports,
+    runner,
+    ...(overrides.llm ? { llm: overrides.llm } : {}),
+  });
 
   return {
     app,

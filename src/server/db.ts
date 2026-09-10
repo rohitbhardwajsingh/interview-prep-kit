@@ -1,4 +1,5 @@
 import { MongoClient, type Collection, type Db } from "mongodb";
+import type { AttemptRecord } from "./attempts/types";
 import type { JobRecord } from "./jobs/types";
 import type { KitRecord } from "./kits/types";
 import type { ReviewRecord } from "./practice/types";
@@ -12,6 +13,7 @@ export interface Store {
   jobs: Collection<JobRecord>;
   stories: Collection<StoryRecord>;
   reviews: Collection<ReviewRecord>;
+  attempts: Collection<AttemptRecord>;
   close(): Promise<void>;
 }
 
@@ -29,6 +31,10 @@ async function ensureIndexes(store: Omit<Store, "close">): Promise<void> {
   await store.jobs.createIndex({ userId: 1, createdAt: -1 });
   await store.stories.createIndex({ userId: 1, createdAt: -1 });
   await store.reviews.createIndex({ userId: 1, kitId: 1 });
+  // Calibration reads every attempt for a kit in order; the scorecard reads
+  // one question's history. Both are served by this.
+  await store.attempts.createIndex({ userId: 1, kitId: 1, createdAt: 1 });
+  await store.attempts.createIndex({ userId: 1, kitId: 1, questionId: 1 });
 }
 
 export async function connectStore(
@@ -48,6 +54,7 @@ export async function connectStore(
     jobs: db.collection<JobRecord>("jobs"),
     stories: db.collection<StoryRecord>("stories"),
     reviews: db.collection<ReviewRecord>("reviews"),
+    attempts: db.collection<AttemptRecord>("attempts"),
   };
 
   await ensureIndexes(store);

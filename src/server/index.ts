@@ -12,11 +12,16 @@ async function main(): Promise<void> {
   const config = readServerConfig(process.env);
   const store = await connectStore(config.mongoUrl, config.mongoDb);
 
+  // One client for both the generation pipeline and answer review, so a
+  // single rate limit and a single model choice cover everything.
+  const llm = createLlmClient(readLlmConfig(process.env));
+
   const { app } = createApp({
     config,
     store,
+    llm,
     ports: createLlmPorts({
-      llm: createLlmClient(readLlmConfig(process.env)),
+      llm,
       allowPrivateHosts: allowPrivateHostsFromEnv(process.env),
     }),
   });
