@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { PartyPopper } from "lucide-react";
 import {
   AnswerRecorder,
   type CapturedAnswer,
 } from "@/components/answer-recorder";
 import { AnswerScorecard } from "@/components/answer-scorecard";
+import { Celebrate } from "@/components/celebrate";
 import { useKitContext } from "@/components/kit-provider";
 import { KitNotReady } from "@/components/kit-not-ready";
 import { SelfRating } from "@/components/self-rating";
@@ -283,13 +285,23 @@ export default function PracticePage() {
 
       {!current || !question ? (
         <section className="card animate-scale-in p-10 text-center">
-          <h2 className="text-xl font-medium">Nothing due right now</h2>
+          {/* The payoff: fire only when they actually cleared work today, not
+              when they arrived to an empty queue. */}
+          <Celebrate when={progress.attempted > 0} />
+          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-good/15 text-good">
+            <PartyPopper className="h-7 w-7" />
+          </div>
+          <h2 className="text-xl font-medium">
+            {progress.attempted === 0
+              ? "Nothing due right now"
+              : "Queue cleared for today"}
+          </h2>
           <p className="mx-auto mt-2 max-w-sm text-sm text-dim">
             {progress.attempted === 0
               ? "This kit has not been practised yet. Come back when there is a plan for today."
-              : "Everything scheduled for today has been through once. The next items come back on their own."}
+              : "Everything scheduled for today has been through. The next items come back on their own — that is the spacing working."}
           </p>
-          <Link href={`/kits/${kitId}`} className="btn-ghost mt-6">
+          <Link href={`/kits/${kitId}`} className="btn-primary mt-6">
             Back to today
           </Link>
         </section>
