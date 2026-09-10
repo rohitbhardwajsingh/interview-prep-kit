@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Sparkles } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import type { KitSummary } from "@/lib/types";
 
@@ -71,10 +73,23 @@ export default function NewKitPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">New kit</h1>
-      <p className="mt-1 text-sm text-dim">
-        Three things, then it runs on its own for a minute or two.
-      </p>
+      <Link
+        href="/kits"
+        className="mb-6 inline-block text-sm text-dim transition hover:text-paper"
+      >
+        ← Kits
+      </Link>
+      <div className="flex items-center gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-accent-grad text-white shadow-glow">
+          <Sparkles className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">New kit</h1>
+          <p className="text-sm text-dim">
+            Three things, then it builds on its own for a minute or two.
+          </p>
+        </div>
+      </div>
 
       <form onSubmit={submit} className="mt-8 space-y-6">
         <div>

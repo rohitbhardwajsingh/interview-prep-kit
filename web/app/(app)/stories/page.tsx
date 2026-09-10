@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BookOpenCheck } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import type { Story } from "@/lib/types";
 
@@ -78,12 +79,18 @@ export default function StoriesPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Story bank</h1>
-      <p className="mt-1 max-w-2xl text-sm text-dim">
-        The things you have actually done. Record them once here and every kit
-        can check its requirements against them — because knowing an answer and
-        having a story are not the same thing.
-      </p>
+      <div className="flex items-center gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-good/10 text-good">
+          <BookOpenCheck className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Story bank</h1>
+          <p className="max-w-2xl text-sm text-dim">
+            The things you have actually done — record them once, and every kit
+            checks its requirements against them.
+          </p>
+        </div>
+      </div>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div>
