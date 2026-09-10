@@ -123,7 +123,10 @@ export default function PracticePage() {
       if (["INPUT", "TEXTAREA"].includes(target?.tagName ?? "")) return;
       if (!current) return;
 
-      if (event.key === " " || event.key === "Enter") {
+      // Matched on code as well as key: the physical spacebar is what the
+      // hint promises, and `key` alone varies with layout and with how the
+      // event was synthesised.
+      if (event.key === " " || event.code === "Space" || event.key === "Enter") {
         event.preventDefault();
         setRevealed(true);
         return;
@@ -165,9 +168,16 @@ export default function PracticePage() {
       <div className="mb-6">
         <div className="flex items-baseline justify-between gap-3">
           <p className="label">Day {day}</p>
-          <p className="tnum text-xs text-faint">
+          {/* "Solid" is deliberately hard to reach: it means an item has
+              survived several spaced sightings, not that it went well once.
+              Saying so stops the counter looking broken after a good answer
+              fails to move it. */}
+          <p
+            className="tnum text-xs text-faint"
+            title="Solid means an item has survived four or more spaced sightings. One confident answer is not enough."
+          >
             {progress.attempted} of {progress.total} seen · {progress.solid}{" "}
-            solid · {progress.shaky} shaky
+            solid · {progress.shaky} still shaky
           </p>
         </div>
         <div className="mt-2 h-1 overflow-hidden rounded-full bg-line">
