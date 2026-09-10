@@ -23,6 +23,14 @@ interface KitApi extends ReturnType<typeof useKit> {
     pinned: boolean,
   ) => Promise<void>;
   rebuild: (section: RegenerableSection) => Promise<void>;
+  /** Adds a hand-written item; resolves to its new id. */
+  addItem: (
+    section: EditableSection,
+    item: Record<string, unknown>,
+  ) => Promise<void>;
+  removeItem: (section: EditableSection, itemId: string) => Promise<void>;
+  reorder: (section: EditableSection, orderedIds: string[]) => Promise<void>;
+  saveBrief: (patch: { summary?: string; what_they_do?: string }) => Promise<void>;
   conflict: Conflict | null;
   resolveConflict: (value: string) => Promise<void>;
   dismissConflict: () => void;
@@ -156,6 +164,59 @@ export function KitProvider({
     [kit, regenerateSection],
   );
 
+  const addItem = useCallback(
+    async (section: EditableSection, item: Record<string, unknown>) => {
+      if (!kit) return;
+      const body = await api<{ kit: KitDetail }>(`/kits/${kitId}/${section}`, {
+        method: "POST",
+        body: { version: kit.version, item },
+      });
+      apply(body.kit);
+      setNotice(null);
+    },
+    [kit, kitId, apply],
+  );
+
+  const removeItem = useCallback(
+    async (section: EditableSection, itemId: string) => {
+      if (!kit) return;
+      const body = await api<{ kit: KitDetail }>(
+        `/kits/${kitId}/${section}/${itemId}?version=${kit.version}`,
+        { method: "DELETE" },
+      );
+      apply(body.kit);
+      setNotice(null);
+    },
+    [kit, kitId, apply],
+  );
+
+  const reorder = useCallback(
+    async (section: EditableSection, orderedIds: string[]) => {
+      if (!kit) return;
+      // Applied optimistically by the caller for immediacy; the response
+      // reconciles the authoritative order and version back in.
+      const body = await api<{ kit: KitDetail }>(
+        `/kits/${kitId}/${section}/reorder`,
+        { method: "POST", body: { version: kit.version, orderedIds } },
+      );
+      apply(body.kit);
+    },
+    [kit, kitId, apply],
+  );
+
+  const saveBrief = useCallback(
+    async (patch: { summary?: string; what_they_do?: string }) => {
+      if (!kit) return;
+      const body = await api<{ kit: KitDetail }>(`/kits/${kitId}/brief`, {
+        method: "PATCH",
+        body: { version: kit.version, patch },
+      });
+      apply(body.kit);
+      setNotice(null);
+    },
+    [kit, kitId, apply],
+  );
+
   return (
     <KitContext.Provider
       value={{
@@ -164,6 +225,10 @@ export function KitProvider({
         save,
         togglePin,
         rebuild,
+        addItem,
+        removeItem,
+        reorder,
+        saveBrief,
         conflict,
         resolveConflict,
         dismissConflict: () => {

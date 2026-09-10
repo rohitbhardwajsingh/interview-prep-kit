@@ -1,28 +1,47 @@
 "use client";
 
+import { Editable } from "@/components/editable";
 import { useKitContext } from "@/components/kit-provider";
 import { KitNotReady } from "@/components/kit-not-ready";
 
 export default function CompanyPage() {
-  const { kit } = useKitContext();
+  const { kit, saveBrief, setNotice } = useKitContext();
   const body = kit?.kit;
 
   if (!body) return <KitNotReady />;
+
+  async function save(field: "summary" | "what_they_do", value: string) {
+    try {
+      await saveBrief({ [field]: value });
+    } catch {
+      setNotice("Could not save the brief. Reload and try again.");
+    }
+  }
 
   return (
     <div className="stagger space-y-4">
       <section className="card p-6" style={{ "--i": 0 } as React.CSSProperties}>
         <h2 className="label">What they do</h2>
-        <p className="mt-3 text-sm leading-relaxed text-dim">
-          {body.company_brief.what_they_do || "Nothing readable was found."}
-        </p>
+        <div className="mt-3 text-sm leading-relaxed text-dim">
+          <Editable
+            label="What the company does"
+            value={body.company_brief.what_they_do || ""}
+            multiline
+            onSave={(next) => save("what_they_do", next)}
+          />
+        </div>
       </section>
 
       <section className="card p-6" style={{ "--i": 1 } as React.CSSProperties}>
         <h2 className="label">Summary</h2>
-        <p className="mt-3 text-sm leading-relaxed text-dim">
-          {body.company_brief.summary || "Nothing readable was found."}
-        </p>
+        <div className="mt-3 text-sm leading-relaxed text-dim">
+          <Editable
+            label="Company summary"
+            value={body.company_brief.summary || ""}
+            multiline
+            onSave={(next) => save("summary", next)}
+          />
+        </div>
       </section>
 
       <section className="card p-6" style={{ "--i": 2 } as React.CSSProperties}>

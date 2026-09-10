@@ -10,10 +10,17 @@ import { param } from "../http/params";
 import type { JobRunner } from "../jobs/runner";
 import {
   EDITABLE_SECTIONS,
+  addItem,
+  addItemSchemaFor,
   applyItemEdit,
+  briefEditSchema,
+  deleteItem,
+  editBrief,
   editItemSchemaFor,
   isEmptyPatch,
   pinItemSchema,
+  reorderItems,
+  reorderSchema,
   setPinned,
 } from "./edit";
 import {
@@ -308,6 +315,120 @@ export function kitRoutes(store: Store, runner: JobRunner): Router {
         param(request, "itemId"),
         pinned,
       );
+
+      const saved = await store.kits.findOneAndUpdate(
+        { _id: kitId, userId: request.userId, version },
+        { $set: { kit, updatedAt: new Date() }, $inc: { version: 1 } },
+        { returnDocument: "after" },
+      );
+      if (!saved) throw conflict("This kit changed; reload and try again");
+
+      response.json({ kit: { ...summarise(saved), kit: saved.kit } });
+    }),
+  );
+
+  // Reordering is registered before the item routes so "reorder" is never
+  // mistaken for an item id.
+  router.post(
+    "/:kitId/:section/reorder",
+    route(async (request, response) => {
+      const section = sectionSchema.parse(param(request, "section"));
+      const { version, orderedIds } = reorderSchema.parse(request.body);
+      const kitId = param(request, "kitId");
+
+      const record = await load(request.userId, kitId);
+      if (!record.kit) throw conflict("This kit has nothing to reorder yet");
+
+      const { kit } = reorderItems(record.kit, section, orderedIds);
+
+      const saved = await store.kits.findOneAndUpdate(
+        { _id: kitId, userId: request.userId, version },
+        { $set: { kit, updatedAt: new Date() }, $inc: { version: 1 } },
+        { returnDocument: "after" },
+      );
+      if (!saved) throw conflict("This kit changed; reload and try again");
+
+      response.json({ kit: { ...summarise(saved), kit: saved.kit } });
+    }),
+  );
+
+  // Add a question or flashcard by hand.
+  router.post(
+    "/:kitId/:section",
+    route(async (request, response) => {
+      const section = sectionSchema.parse(param(request, "section"));
+      const { version, item } = addItemSchemaFor(section).parse(request.body);
+      const kitId = param(request, "kitId");
+
+      const record = await load(request.userId, kitId);
+      if (!record.kit) throw conflict("Generate this kit before adding to it");
+
+      const { kit, report, id } = addItem(record.kit, section, item);
+
+      const saved = await store.kits.findOneAndUpdate(
+        { _id: kitId, userId: request.userId, version },
+        { $set: { kit, updatedAt: new Date() }, $inc: { version: 1 } },
+        { returnDocument: "after" },
+      );
+      if (!saved) throw conflict("This kit changed; reload and try again");
+
+      response.status(201).json({
+        id,
+        kit: { ...summarise(saved), kit: saved.kit },
+        reconciled: report,
+      });
+    }),
+  );
+
+  router.delete(
+    "/:kitId/:section/:itemId",
+    route(async (request, response) => {
+      const section = sectionSchema.parse(param(request, "section"));
+      const kitId = param(request, "kitId");
+      // Sent as a query param on delete, where a body is awkward.
+      const version = z.coerce
+        .number()
+        .int()
+        .nonnegative()
+        .parse(request.query["version"]);
+
+      const record = await load(request.userId, kitId);
+      if (!record.kit) throw conflict("This kit has nothing to delete yet");
+
+      const { kit, report } = deleteItem(
+        record.kit,
+        section,
+        param(request, "itemId"),
+      );
+
+      const saved = await store.kits.findOneAndUpdate(
+        { _id: kitId, userId: request.userId, version },
+        { $set: { kit, updatedAt: new Date() }, $inc: { version: 1 } },
+        { returnDocument: "after" },
+      );
+      if (!saved) throw conflict("This kit changed; reload and try again");
+
+      response.json({
+        kit: { ...summarise(saved), kit: saved.kit },
+        reconciled: report,
+      });
+    }),
+  );
+
+  // The company brief is prose, so it has its own small edit path separate
+  // from the item sections.
+  router.patch(
+    "/:kitId/brief",
+    route(async (request, response) => {
+      const { version, patch } = briefEditSchema.parse(request.body);
+      const kitId = param(request, "kitId");
+
+      if (isEmptyPatch(patch)) throw badRequest("That edit changes nothing");
+
+      const record = await load(request.userId, kitId);
+      if (!record.kit) throw conflict("This kit has no brief to edit yet");
+
+      const kit = editBrief(record.kit, patch);
 
       const saved = await store.kits.findOneAndUpdate(
         { _id: kitId, userId: request.userId, version },

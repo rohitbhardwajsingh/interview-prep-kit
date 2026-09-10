@@ -603,6 +603,150 @@ describe.skipIf(!available)("kit routes", () => {
     });
   });
 
+  describe("the builder", () => {
+    async function version(
+      agent: ReturnType<typeof request.agent>,
+      kitId: string,
+    ): Promise<number> {
+      return (await agent.get(`/kits/${kitId}`)).body.kit.version as number;
+    }
+
+    it("adds a question by hand, marked as the user's own", async () => {
+      const { agent, kitId } = await generated();
+
+      const added = await agent
+        .post(`/kits/${kitId}/questions`)
+        .send({
+          version: await version(agent, kitId),
+          item: { prompt: "My own question?", category: "behavioural" },
+        })
+        .expect(201);
+
+      const created = added.body.kit.kit.questions.find(
+        (q: { id: string }) => q.id === added.body.id,
+      );
+      expect(created.provenance).toBe("edited");
+      expect(created.category).toBe("behavioural");
+    });
+
+    it("keeps a hand-added question through a regeneration", async () => {
+      const { harness, agent, kitId } = await generated();
+
+      const added = await agent
+        .post(`/kits/${kitId}/questions`)
+        .send({
+          version: await version(agent, kitId),
+          item: { prompt: "Mine, keep it", category: "technical" },
+        })
+        .expect(201);
+      const mineId = added.body.id as string;
+
+      await agent
+        .post(`/kits/${kitId}/regenerate`)
+        .send({ section: "questions", version: await version(agent, kitId) })
+        .expect(202);
+      await harness.runner.drain();
+
+      const after = await agent.get(`/kits/${kitId}`).expect(200);
+      const survivor = after.body.kit.kit.questions.find(
+        (q: { id: string }) => q.id === mineId,
+      );
+      expect(survivor).toBeTruthy();
+      expect(survivor.prompt).toBe("Mine, keep it");
+    });
+
+    it("deletes a question and recomputes coverage", async () => {
+      const { agent, kitId } = await generated();
+
+      const response = await agent
+        .delete(`/kits/${kitId}/questions/q1?version=${await version(agent, kitId)}`)
+        .expect(200);
+
+      expect(
+        response.body.kit.kit.questions.some((q: { id: string }) => q.id === "q1"),
+      ).toBe(false);
+      // r1 lost its only question, so it is now an uncovered must-have.
+      expect(
+        response.body.kit.kit.coverage.uncovered_requirement_ids,
+      ).toContain("r1");
+    });
+
+    it("moves a question to another category", async () => {
+      const { agent, kitId } = await generated();
+
+      const response = await agent
+        .patch(`/kits/${kitId}/questions/q1`)
+        .send({
+          version: await version(agent, kitId),
+          patch: { category: "company-fit" },
+        })
+        .expect(200);
+
+      const moved = response.body.kit.kit.questions.find(
+        (q: { id: string }) => q.id === "q1",
+      );
+      expect(moved.category).toBe("company-fit");
+      expect(moved.provenance).toBe("edited");
+    });
+
+    it("reorders questions to exactly the given order", async () => {
+      const { agent, kitId } = await generated();
+
+      const response = await agent
+        .post(`/kits/${kitId}/questions/reorder`)
+        .send({
+          version: await version(agent, kitId),
+          orderedIds: ["q3", "q1", "q2"],
+        })
+        .expect(200);
+
+      expect(
+        response.body.kit.kit.questions.map((q: { id: string }) => q.id),
+      ).toEqual(["q3", "q1", "q2"]);
+    });
+
+    it("refuses a reorder that is not a permutation of the current items", async () => {
+      const { agent, kitId } = await generated();
+
+      const response = await agent.post(`/kits/${kitId}/questions/reorder`).send({
+        version: await version(agent, kitId),
+        orderedIds: ["q1", "q2"],
+      });
+      expect(response.status).toBe(400);
+    });
+
+    it("edits the company brief", async () => {
+      const { agent, kitId } = await generated();
+
+      const response = await agent
+        .patch(`/kits/${kitId}/brief`)
+        .send({
+          version: await version(agent, kitId),
+          patch: { summary: "A sharper summary in my words." },
+        })
+        .expect(200);
+
+      expect(response.body.kit.kit.company_brief.summary).toBe(
+        "A sharper summary in my words.",
+      );
+    });
+
+    it("refuses a builder write against a stale version", async () => {
+      const { agent, kitId } = await generated();
+      const stale = await version(agent, kitId);
+      // Move the version on with one edit.
+      await agent
+        .patch(`/kits/${kitId}/brief`)
+        .send({ version: stale, patch: { summary: "first" } })
+        .expect(200);
+
+      const response = await agent
+        .post(`/kits/${kitId}/questions`)
+        .send({ version: stale, item: { prompt: "too late" } });
+      expect(response.status).toBe(409);
+    });
+  });
+
   describe("the kits list", () => {
     it("carries each ready kit's pulse, so the dashboard needs no extra calls", async () => {
       const { agent } = await generated();

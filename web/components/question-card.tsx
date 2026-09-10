@@ -1,11 +1,18 @@
 "use client";
 
-import { Pin, PinOff } from "lucide-react";
+import { ChevronDown, ChevronUp, Pin, PinOff, Trash2 } from "lucide-react";
 import { Editable } from "@/components/editable";
 import { useKitContext } from "@/components/kit-provider";
 import { ProvenanceBadge } from "@/components/provenance-badge";
 import { categoryMeta } from "@/lib/categories";
 import type { Question, Requirement } from "@/lib/types";
+
+const CATEGORY_OPTIONS = [
+  "technical",
+  "behavioural",
+  "system-design",
+  "company-fit",
+] as const;
 
 /** Difficulty as filled dots, so it reads without parsing "difficulty 2". */
 function Difficulty({ level }: { level: number }) {
@@ -26,49 +33,117 @@ function Difficulty({ level }: { level: number }) {
 export function QuestionCard({
   question,
   requirements,
+  onMoveUp,
+  onMoveDown,
+  isFirst,
+  isLast,
 }: {
   question: Question;
   requirements: Requirement[];
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  isFirst?: boolean;
+  isLast?: boolean;
 }) {
-  const { save, togglePin } = useKitContext();
+  const { save, togglePin, removeItem, setNotice } = useKitContext();
   const pinned = question.provenance === "pinned";
   const meta = categoryMeta(question.category);
+
+  async function remove() {
+    if (!window.confirm("Delete this question? This cannot be undone.")) return;
+    try {
+      await removeItem("questions", question.id);
+    } catch {
+      setNotice("Could not delete that question. Reload and try again.");
+    }
+  }
 
   return (
     <li
       className={`card-interactive overflow-hidden border-l-4 p-5 ${meta.border}`}
     >
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        {/* Move within the bank. Reordering is a click, applied server-side
+            and reflected back, so it stays consistent with the schedule. */}
+        {(onMoveUp || onMoveDown) && (
+          <span className="flex items-center">
+            <button
+              type="button"
+              onClick={onMoveUp}
+              disabled={isFirst}
+              aria-label="Move question up"
+              className="rounded-md p-1 text-faint transition hover:bg-surface-high hover:text-paper disabled:opacity-30"
+            >
+              <ChevronUp className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={isLast}
+              aria-label="Move question down"
+              className="rounded-md p-1 text-faint transition hover:bg-surface-high hover:text-paper disabled:opacity-30"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </button>
+          </span>
+        )}
+
+        {/* Category is a control, not a label: moving a question between
+            categories is one of the edits the builder must support. */}
         <span
-          className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1
+          className={`inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1
             text-[11px] font-semibold ${meta.bgSoft} ${meta.text}`}
         >
           <meta.icon className="h-3.5 w-3.5" />
-          {meta.label}
+          <select
+            aria-label="Question category"
+            value={question.category}
+            onChange={(event) =>
+              void save("questions", question.id, "category", event.target.value)
+            }
+            className={`cursor-pointer bg-transparent pr-1 font-semibold outline-none ${meta.text}`}
+          >
+            {CATEGORY_OPTIONS.map((option) => (
+              <option key={option} value={option} className="bg-surface text-paper">
+                {categoryMeta(option).label}
+              </option>
+            ))}
+          </select>
         </span>
         <Difficulty level={question.difficulty} />
         <ProvenanceBadge state={question.provenance} />
         <span className="font-mono text-[11px] text-faint">{question.id}</span>
 
-        <button
-          type="button"
-          onClick={() => void togglePin("questions", question.id, !pinned)}
-          aria-pressed={pinned}
-          title={pinned ? "Unpin — allow rebuilds to replace it" : "Pin — protect from rebuilds"}
-          className={`ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1
-            text-xs transition ${
-              pinned
-                ? "bg-pinned/10 text-pinned"
-                : "text-faint hover:bg-surface-high hover:text-pinned"
-            }`}
-        >
-          {pinned ? (
-            <PinOff className="h-3.5 w-3.5" />
-          ) : (
-            <Pin className="h-3.5 w-3.5" />
-          )}
-          {pinned ? "Pinned" : "Pin"}
-        </button>
+        <span className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => void togglePin("questions", question.id, !pinned)}
+            aria-pressed={pinned}
+            title={pinned ? "Unpin — allow rebuilds to replace it" : "Pin — protect from rebuilds"}
+            className={`inline-flex items-center gap-1 rounded-lg px-2 py-1
+              text-xs transition ${
+                pinned
+                  ? "bg-pinned/10 text-pinned"
+                  : "text-faint hover:bg-surface-high hover:text-pinned"
+              }`}
+          >
+            {pinned ? (
+              <PinOff className="h-3.5 w-3.5" />
+            ) : (
+              <Pin className="h-3.5 w-3.5" />
+            )}
+            {pinned ? "Pinned" : "Pin"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void remove()}
+            aria-label="Delete question"
+            title="Delete this question"
+            className="rounded-lg p-1.5 text-faint transition hover:bg-bad/10 hover:text-bad"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </span>
       </div>
 
       <div className="text-[15px] font-medium leading-relaxed">
