@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import type { KitQuestion } from "../kit/schema";
 import { analyseAnswer } from "./analyse";
+
+type QuestionCategory = KitQuestion["category"];
 
 const OUTLINE = [
   "- Explains why the query was slow (missing index, sequential scan)",
@@ -8,7 +11,9 @@ const OUTLINE = [
   "- Gives the measured improvement",
 ].join("\n");
 
-function question(overrides: Partial<{ answer_outline: string; category: string }> = {}) {
+function question(
+  overrides: Partial<{ answer_outline: string; category: QuestionCategory }> = {},
+): Pick<KitQuestion, "answer_outline" | "category"> {
   return {
     answer_outline: overrides.answer_outline ?? OUTLINE,
     category: overrides.category ?? "technical",
