@@ -4,28 +4,25 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import type { EvidenceReport, KitDetail, Story } from "@/lib/types";
-
-/**
- * Links live in the browser's storage rather than the database. They are a
- * personal annotation on a kit, cheap to redo, and keeping them local means
- * the audit works without adding a write path for something the deterministic
- * checker treats as input anyway.
- */
-function storageKey(kitId: string): string {
-  return `prepkit.evidence.${kitId}`;
-}
+import type {
+  EvidenceLink,
+  EvidenceReport,
+  KitDetail,
+  Story,
+} from "@/lib/types";
 
 type Links = Record<string, string[]>;
 
-function readLinks(kitId: string): Links {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(storageKey(kitId));
-    return raw ? (JSON.parse(raw) as Links) : {};
-  } catch {
-    return {};
-  }
+function toRecord(links: EvidenceLink[]): Links {
+  return Object.fromEntries(
+    links.map((link) => [link.storyId, link.requirementIds]),
+  );
+}
+
+function toList(links: Links): EvidenceLink[] {
+  return Object.entries(links)
+    .filter(([, requirementIds]) => requirementIds.length > 0)
+    .map(([storyId, requirementIds]) => ({ storyId, requirementIds }));
 }
 
 export default function EvidencePage() {
@@ -36,19 +33,24 @@ export default function EvidencePage() {
   const [report, setReport] = useState<EvidenceReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setLinks(readLinks(kitId));
-  }, [kitId]);
-
+  // The kit, the stories and whatever links were saved last time, in one
+  // pass. The links come back from the server so the audit follows the user
+  // between machines rather than living in one browser.
   useEffect(() => {
     const controller = new AbortController();
     Promise.all([
       api<{ kit: KitDetail }>(`/kits/${kitId}`, { signal: controller.signal }),
       api<{ stories: Story[] }>("/stories", { signal: controller.signal }),
+      api<{ links: EvidenceLink[]; report: EvidenceReport }>(
+        `/kits/${kitId}/evidence`,
+        { signal: controller.signal },
+      ),
     ])
-      .then(([kitBody, storyBody]) => {
+      .then(([kitBody, storyBody, evidenceBody]) => {
         setKit(kitBody.kit);
         setStories(storyBody.stories);
+        setLinks(toRecord(evidenceBody.links));
+        setReport(evidenceBody.report);
       })
       .catch((cause: unknown) => {
         if (cause instanceof DOMException && cause.name === "AbortError") return;
@@ -57,48 +59,39 @@ export default function EvidencePage() {
     return () => controller.abort();
   }, [kitId]);
 
-  const audit = useCallback(
+  /**
+   * Saves and re-audits in the same call. The verdict always comes back from
+   * the server's checker rather than being recomputed here, so the audit the
+   * user reads is the same one the readiness score is built on.
+   */
+  const save = useCallback(
     async (next: Links) => {
       try {
         const body = await api<{ report: EvidenceReport }>(
           `/kits/${kitId}/evidence`,
-          {
-            method: "POST",
-            body: {
-              links: Object.entries(next).map(([storyId, requirementIds]) => ({
-                storyId,
-                requirementIds,
-              })),
-            },
-          },
+          { method: "PUT", body: { links: toList(next) } },
         );
         setReport(body.report);
         setError(null);
       } catch (cause) {
-        setError(cause instanceof ApiError ? cause.message : "Could not audit");
+        setError(cause instanceof ApiError ? cause.message : "Could not save");
       }
     },
     [kitId],
   );
 
-  // Re-audited on the server after every change, so the verdict always comes
-  // from the same checker the rest of the pipeline uses.
-  useEffect(() => {
-    if (kit?.kit) void audit(links);
-  }, [kit, links, audit]);
-
   function toggle(storyId: string, requirementId: string) {
-    setLinks((current) => {
-      const owned = current[storyId] ?? [];
-      const next = {
-        ...current,
-        [storyId]: owned.includes(requirementId)
-          ? owned.filter((id) => id !== requirementId)
-          : [...owned, requirementId],
-      };
-      window.localStorage.setItem(storageKey(kitId), JSON.stringify(next));
-      return next;
-    });
+    const owned = links[storyId] ?? [];
+    const next = {
+      ...links,
+      [storyId]: owned.includes(requirementId)
+        ? owned.filter((id) => id !== requirementId)
+        : [...owned, requirementId],
+    };
+    // Applied immediately and reconciled by the response: a checkbox that
+    // waits for a round trip feels broken at this density.
+    setLinks(next);
+    void save(next);
   }
 
   const requirements = kit?.kit?.role.requirements ?? [];
@@ -123,7 +116,7 @@ export default function EvidencePage() {
   if (!kit?.kit) {
     return (
       <main className="mx-auto max-w-5xl px-6 py-10">
-        <p className="text-sm text-muted">
+        <p className="text-sm text-dim">
           {kit ? "Generate this kit before auditing it." : "Loading…"}
         </p>
         <Link href={`/kits/${kitId}`} className="btn-ghost mt-4">
@@ -135,14 +128,14 @@ export default function EvidencePage() {
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
-      <Link href={`/kits/${kitId}`} className="text-sm text-muted hover:text-paper">
+      <Link href={`/kits/${kitId}`} className="text-sm text-dim hover:text-paper">
         ← {kit.title}
       </Link>
 
       <h1 className="mt-4 text-2xl font-semibold tracking-tight">
         Evidence gaps
       </h1>
-      <p className="mt-1 max-w-2xl text-sm text-muted">
+      <p className="mt-1 max-w-2xl text-sm text-dim">
         Tick the stories that genuinely back each requirement. What is left is
         what you will struggle to answer with anything concrete.
       </p>
@@ -150,7 +143,7 @@ export default function EvidencePage() {
       {stories.length === 0 ? (
         <div className="card mt-8 p-6 text-center">
           <p className="font-medium">Your story bank is empty</p>
-          <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted">
+          <p className="mx-auto mt-1.5 max-w-sm text-sm text-dim">
             This audit compares the role&apos;s requirements against what you
             have actually done, so it needs a few stories first.
           </p>
@@ -199,7 +192,7 @@ export default function EvidencePage() {
                 Requirements against the stories that evidence them
               </caption>
               <thead>
-                <tr className="border-b border-ink-line text-left">
+                <tr className="border-b border-line text-left">
                   <th scope="col" className="pb-2 pr-4 font-medium">
                     Requirement
                   </th>
@@ -211,7 +204,7 @@ export default function EvidencePage() {
                     >
                       <span
                         title={story.title}
-                        className="block max-w-[7rem] truncate text-xs text-muted"
+                        className="block max-w-[7rem] truncate text-xs text-dim"
                       >
                         {story.title}
                       </span>
@@ -228,7 +221,7 @@ export default function EvidencePage() {
                   return (
                     <tr
                       key={requirement.id}
-                      className="border-b border-ink-line/50"
+                      className="border-b border-line/50"
                     >
                       <th
                         scope="row"
@@ -239,7 +232,7 @@ export default function EvidencePage() {
                         >
                           {requirement.text}
                         </span>
-                        <span className="mt-0.5 block text-[11px] text-muted">
+                        <span className="mt-0.5 block text-[11px] text-dim">
                           {requirement.priority === "must" ? "Must have" : "Nice to have"}
                           {" · "}
                           {questionCount} question
@@ -272,7 +265,7 @@ export default function EvidencePage() {
           </div>
 
           {(report?.unused_story_ids.length ?? 0) > 0 && (
-            <p className="mt-6 text-sm text-muted">
+            <p className="mt-6 text-sm text-dim">
               Not used for this role:{" "}
               {report?.unused_story_ids
                 .map((id) => stories.find((s) => s.id === id)?.title ?? id)
@@ -299,9 +292,9 @@ function Stat({
 }) {
   return (
     <div className="card p-4">
-      <p className="text-xs text-muted">{label}</p>
+      <p className="text-xs text-dim">{label}</p>
       <p className={`mt-1 text-2xl font-semibold ${tone}`}>{value}</p>
-      {hint && <p className="mt-1 text-[11px] leading-snug text-muted">{hint}</p>}
+      {hint && <p className="mt-1 text-[11px] leading-snug text-dim">{hint}</p>}
     </div>
   );
 }

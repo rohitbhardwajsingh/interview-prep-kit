@@ -32,14 +32,14 @@ export default function SignInPage() {
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-6">
-      <Link href="/" className="mb-8 text-sm text-muted hover:text-paper">
+      <Link href="/" className="mb-8 text-sm text-dim hover:text-paper">
         ← Interview Prep Kit
       </Link>
 
       <h1 className="text-2xl font-semibold tracking-tight">
         {registering ? "Create an account" : "Welcome back"}
       </h1>
-      <p className="mt-2 text-sm text-muted">
+      <p className="mt-2 text-sm text-dim">
         {registering
           ? "Your kits and your story bank stay yours."
           : "Sign in to pick up where you left off."}
@@ -75,7 +75,7 @@ export default function SignInPage() {
             onChange={(event) => setPassword(event.target.value)}
           />
           {registering && (
-            <p className="mt-1.5 text-xs text-muted">
+            <p className="mt-1.5 text-xs text-dim">
               At least 10 characters. A passphrase beats a clever password.
             </p>
           )}
@@ -101,7 +101,7 @@ export default function SignInPage() {
           setMode(registering ? "sign-in" : "register");
           setError(null);
         }}
-        className="mt-6 text-sm text-muted hover:text-paper"
+        className="mt-6 text-sm text-dim hover:text-paper"
       >
         {registering
           ? "Already have an account? Sign in"

@@ -72,6 +72,10 @@ export interface KitSummary {
   version: number;
   title: string;
   request: { jd: string; companyUrl: string; days: number };
+  /** Civil dates, YYYY-MM-DD. Null on kits created before dates were asked. */
+  interviewDate: string | null;
+  startDate: string | null;
+  timeZone: string | null;
   error: { code: string; message: string } | null;
   createdAt: string;
   updatedAt: string;
@@ -111,6 +115,68 @@ export interface Story {
   action: string;
   result: string;
   tags: string[];
+}
+
+export interface CalendarDay {
+  day: number;
+  date: string;
+  weekday: string;
+  state: "past" | "today" | "future";
+  isEve: boolean;
+}
+
+export interface StudyCalendar {
+  days: CalendarDay[];
+  todayDay: number | null;
+  daysUntilInterview: number;
+  elapsedDays: number;
+  interviewDate: string;
+  startDate: string;
+  isInterviewDay: boolean;
+  isPast: boolean;
+}
+
+export interface ReadinessComponent {
+  id: "practice" | "evidence";
+  label: string;
+  score: number;
+  weight: number;
+  detail: string;
+}
+
+export interface Readiness {
+  score: number;
+  band: "not-started" | "early" | "getting-there" | "ready";
+  components: ReadinessComponent[];
+  ceiling: { score: number; detail: string };
+  nextAction: string;
+  blockers: string[];
+}
+
+export interface ReplanReport {
+  carriedOver: number;
+  alreadyDone: number;
+  deferredQuestionIds: string[];
+  peakDayMinutes: number;
+  overloaded: boolean;
+  summary: string;
+}
+
+/** Everything the home screen needs, recomputed on every read. */
+export interface TodayView {
+  calendar: StudyCalendar;
+  countdown: string;
+  readiness: Readiness;
+  plan: ScheduleDay | null;
+  questions: Question[];
+  replan: ReplanReport;
+  behind: boolean;
+}
+
+/** One story's claim to evidence a set of requirements. */
+export interface EvidenceLink {
+  storyId: string;
+  requirementIds: string[];
 }
 
 export interface EvidenceReport {

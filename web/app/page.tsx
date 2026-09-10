@@ -22,7 +22,7 @@ const POINTS = [
 export default function LandingPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-20">
-      <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted">
+      <p className="font-mono text-xs uppercase tracking-[0.2em] text-dim">
         Interview Prep Kit
       </p>
 
@@ -32,7 +32,7 @@ export default function LandingPage() {
         Get a study plan you can actually work through.
       </h1>
 
-      <p className="mt-5 max-w-xl text-muted">
+      <p className="mt-5 max-w-xl text-dim">
         It reads the posting, researches the company from its own site, and
         builds questions, flashcards and a day-by-day schedule — then checks its
         own work before showing you anything.
@@ -55,7 +55,7 @@ export default function LandingPage() {
         {POINTS.map((point) => (
           <div key={point.title} className="card p-4">
             <dt className="text-sm font-semibold">{point.title}</dt>
-            <dd className="mt-1.5 text-sm leading-relaxed text-muted">
+            <dd className="mt-1.5 text-sm leading-relaxed text-dim">
               {point.body}
             </dd>
           </div>

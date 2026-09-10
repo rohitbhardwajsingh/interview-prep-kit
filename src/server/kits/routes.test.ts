@@ -17,6 +17,12 @@ const NEW_KIT = {
   days: 3,
 };
 
+/** A civil date this many days from today, in UTC. */
+function inDays(count: number): string {
+  const at = new Date(Date.now() + count * 86_400_000);
+  return at.toISOString().slice(0, 10);
+}
+
 const SCRIPT: FakePortsScript = {
   requirements: [
     buildRequirement("r1", { text: "Production Go" }),
@@ -540,7 +546,7 @@ describe.skipIf(!available)("kit routes", () => {
         .expect(201);
 
       const response = await agent
-        .post(`/kits/${kitId}/evidence`)
+        .put(`/kits/${kitId}/evidence`)
         .send({ links: [{ storyId: story.body.story.id, requirementIds: ["r1"] }] })
         .expect(200);
 
@@ -554,18 +560,160 @@ describe.skipIf(!available)("kit routes", () => {
       const { agent, kitId } = await generated();
 
       const response = await agent
-        .post(`/kits/${kitId}/evidence`)
+        .put(`/kits/${kitId}/evidence`)
         .send({ links: [{ storyId: "someone-elses-story", requirementIds: ["r1"] }] })
         .expect(200);
 
       expect(response.body.report.critical_requirement_ids).toEqual(["r1", "r2"]);
+      // The unusable link is not kept either, so it cannot come back later.
+      expect(response.body.links).toEqual([]);
+    });
+
+    it("remembers the links, so the audit survives a new browser", async () => {
+      const { agent, kitId } = await generated();
+      const story = await agent
+        .post("/stories")
+        .send({ title: "Rewrote the ingest path in Go", tags: ["go"] })
+        .expect(201);
+
+      await agent
+        .put(`/kits/${kitId}/evidence`)
+        .send({ links: [{ storyId: story.body.story.id, requirementIds: ["r1"] }] })
+        .expect(200);
+
+      const reread = await agent.get(`/kits/${kitId}/evidence`).expect(200);
+      expect(reread.body.links).toEqual([
+        { storyId: story.body.story.id, requirementIds: ["r1"] },
+      ]);
+      expect(reread.body.report.critical_requirement_ids).toEqual(["r2"]);
+    });
+
+    it("starts with nothing linked", async () => {
+      const { agent, kitId } = await generated();
+
+      const response = await agent.get(`/kits/${kitId}/evidence`).expect(200);
+      expect(response.body.links).toEqual([]);
     });
 
     it("will not audit a kit that has not been generated", async () => {
       const { agent, kitId } = await generated({ ...SCRIPT, failOn: "research" });
 
-      const response = await agent.post(`/kits/${kitId}/evidence`).send({ links: [] });
+      const response = await agent.put(`/kits/${kitId}/evidence`).send({ links: [] });
       expect(response.status).toBe(409);
+    });
+  });
+
+  describe("today", () => {
+    it("answers with a countdown, a readiness score and a plan", async () => {
+      const { agent, kitId } = await generated();
+
+      const response = await agent.get(`/kits/${kitId}/today`).expect(200);
+
+      expect(response.body.calendar.daysUntilInterview).toBeGreaterThan(0);
+      expect(response.body.countdown).toMatch(/interview/i);
+      // Nothing has been practised, so the honest answer is zero.
+      expect(response.body.readiness.score).toBe(0);
+      expect(response.body.readiness.band).toBe("not-started");
+      expect(response.body.readiness.nextAction).toBeTruthy();
+    });
+
+    it("rises once questions are practised", async () => {
+      const { agent, kitId } = await generated();
+      const before = await agent.get(`/kits/${kitId}/today`).expect(200);
+
+      const question = before.body.questions[0] ?? { id: "q1" };
+      await agent
+        .post(`/kits/${kitId}/practice/${question.id}`)
+        .send({ confidence: 5, day: 1 })
+        .expect(200);
+
+      const after = await agent.get(`/kits/${kitId}/today`).expect(200);
+      expect(after.body.readiness.score).toBeGreaterThan(
+        before.body.readiness.score,
+      );
+    });
+
+    it("counts evidence once the user has linked a story", async () => {
+      const { agent, kitId } = await generated();
+      const story = await agent
+        .post("/stories")
+        .send({ title: "Rewrote the ingest path in Go", tags: ["go"] })
+        .expect(201);
+
+      const before = await agent.get(`/kits/${kitId}/today`).expect(200);
+      expect(before.body.readiness.components.map((c: { id: string }) => c.id))
+        .toEqual(["practice"]);
+
+      await agent
+        .put(`/kits/${kitId}/evidence`)
+        .send({ links: [{ storyId: story.body.story.id, requirementIds: ["r1"] }] })
+        .expect(200);
+
+      const after = await agent.get(`/kits/${kitId}/today`).expect(200);
+      expect(after.body.readiness.components.map((c: { id: string }) => c.id))
+        .toEqual(["practice", "evidence"]);
+    });
+
+    it("refuses a kit that has not been generated", async () => {
+      const { agent, kitId } = await generated({ ...SCRIPT, failOn: "research" });
+
+      const response = await agent.get(`/kits/${kitId}/today`);
+      expect(response.status).toBe(409);
+    });
+  });
+
+  describe("interview dates", () => {
+    it("turns a date into the right number of study days", async () => {
+      const { agent } = await signedIn();
+      const interviewDate = inDays(5);
+
+      const created = await agent
+        .post("/kits")
+        .send({ jd: NEW_KIT.jd, companyUrl: NEW_KIT.companyUrl, interviewDate, timeZone: "UTC" })
+        .expect(202);
+
+      // Five days away means five study days, ending the evening before.
+      expect(created.body.kit.request.days).toBe(5);
+      expect(created.body.kit.interviewDate).toBe(interviewDate);
+    });
+
+    it("still accepts a plain day count, as the batch command sends", async () => {
+      const { agent } = await signedIn();
+
+      const created = await agent
+        .post("/kits")
+        .send({ jd: NEW_KIT.jd, companyUrl: NEW_KIT.companyUrl, days: 3 })
+        .expect(202);
+
+      expect(created.body.kit.request.days).toBe(3);
+      // A date is derived either way, so every kit is addressable the same.
+      expect(created.body.kit.interviewDate).toBeTruthy();
+    });
+
+    it("gives a single day's plan when the interview is today", async () => {
+      const { agent } = await signedIn();
+
+      const created = await agent
+        .post("/kits")
+        .send({
+          jd: NEW_KIT.jd,
+          companyUrl: NEW_KIT.companyUrl,
+          interviewDate: inDays(0),
+          timeZone: "UTC",
+        })
+        .expect(202);
+
+      expect(created.body.kit.request.days).toBe(1);
+    });
+
+    it("refuses a request with neither a date nor a count", async () => {
+      const { agent } = await signedIn();
+
+      const response = await agent
+        .post("/kits")
+        .send({ jd: NEW_KIT.jd, companyUrl: NEW_KIT.companyUrl });
+
+      expect(response.status).toBe(400);
     });
   });
 });

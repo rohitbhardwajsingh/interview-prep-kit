@@ -88,7 +88,7 @@ export function RegenerateSection({
           <>Adds new {plural(section, 2)} alongside yours.</>
         )}{" "}
         {kept > 0 ? (
-          <span className="text-muted">
+          <span className="text-dim">
             The <strong className="text-edited">{kept}</strong> you edited or
             pinned {kept === 1 ? "stays" : "stay"} exactly as {kept === 1 ? "it is" : "they are"}.
           </span>

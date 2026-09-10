@@ -22,12 +22,12 @@ export default function AppError({
   return (
     <main className="mx-auto max-w-lg px-6 py-20 text-center">
       <h1 className="text-xl font-semibold">This page could not be shown</h1>
-      <p className="mt-2 text-sm text-muted">
+      <p className="mt-2 text-sm text-dim">
         Your data is untouched — this is a display fault, not a lost kit.
       </p>
 
       {error.message && (
-        <p className="mt-4 break-words rounded-lg border border-ink-line bg-ink-soft p-3 text-left font-mono text-xs text-muted">
+        <p className="mt-4 break-words rounded-lg border border-line bg-surface p-3 text-left font-mono text-xs text-dim">
           {error.message}
         </p>
       )}

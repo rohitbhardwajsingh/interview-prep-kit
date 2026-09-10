@@ -60,7 +60,7 @@ export function Editable({ value, label, multiline, onSave }: Props) {
         onClick={() => setEditing(true)}
         aria-label={`Edit ${label}`}
         className="-mx-1.5 -my-1 block w-full rounded px-1.5 py-1 text-left
-          hover:bg-ink-line/50 focus-visible:bg-ink-line/50"
+          hover:bg-surface-high/50 focus-visible:bg-surface-high/50"
       >
         <span className="whitespace-pre-wrap">{value}</span>
       </button>
@@ -132,7 +132,7 @@ export function Editable({ value, label, multiline, onSave }: Props) {
         >
           Cancel
         </button>
-        <span className="text-[11px] text-muted">Esc to discard · ⌘↵ to save</span>
+        <span className="text-[11px] text-dim">Esc to discard · ⌘↵ to save</span>
       </div>
       {error && (
         <p role="alert" className="text-[11px] text-bad">

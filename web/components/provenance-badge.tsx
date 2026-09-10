@@ -6,7 +6,7 @@ const COPY: Record<Provenance, { label: string; title: string; tone: string }> =
   generated: {
     label: "Generated",
     title: "Written by the model. A regeneration may replace this.",
-    tone: "border-ink-line text-generated",
+    tone: "border-line text-generated",
   },
   edited: {
     label: "Yours",

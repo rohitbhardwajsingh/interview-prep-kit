@@ -5,15 +5,44 @@ import { useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import type { KitSummary } from "@/lib/types";
 
-const DAY_PRESETS = [2, 3, 5, 7, 14];
+const PRESETS = [
+  { days: 2, label: "In two days" },
+  { days: 3, label: "In three days" },
+  { days: 7, label: "Next week" },
+  { days: 14, label: "In a fortnight" },
+];
+
+/** Today in the browser's own timezone, as YYYY-MM-DD. */
+function todayLocal(): string {
+  return new Intl.DateTimeFormat("en-CA").format(new Date());
+}
+
+function addDays(date: string, count: number): string {
+  const [year, month, day] = date.split("-").map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  const shifted = new Date(Date.UTC(year, month - 1, day + count));
+  return shifted.toISOString().slice(0, 10);
+}
 
 export default function NewKitPage() {
   const router = useRouter();
   const [jd, setJd] = useState("");
   const [companyUrl, setCompanyUrl] = useState("");
-  const [days, setDays] = useState(7);
+  const [interviewDate, setInterviewDate] = useState(() =>
+    addDays(todayLocal(), 7),
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const today = todayLocal();
+  const daysAway = Math.round(
+    (Date.parse(`${interviewDate}T00:00:00Z`) -
+      Date.parse(`${today}T00:00:00Z`)) /
+      86_400_000,
+  );
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -22,7 +51,14 @@ export default function NewKitPage() {
     try {
       const body = await api<{ kit: KitSummary; jobId: string }>("/kits", {
         method: "POST",
-        body: { jd, companyUrl, days },
+        body: {
+          jd,
+          companyUrl,
+          interviewDate,
+          // Sent so the server knows when this user's day rolls over, rather
+          // than assuming everyone lives in UTC.
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
       });
       // Straight to the kit, which shows the run in progress. The work is
       // already claimed server-side, so navigating away will not cancel it.
@@ -36,7 +72,7 @@ export default function NewKitPage() {
   return (
     <main className="mx-auto max-w-2xl px-6 py-10">
       <h1 className="text-2xl font-semibold tracking-tight">New kit</h1>
-      <p className="mt-1 text-sm text-muted">
+      <p className="mt-1 text-sm text-dim">
         Three things, then it runs on its own for a minute or two.
       </p>
 
@@ -54,7 +90,7 @@ export default function NewKitPage() {
             value={jd}
             onChange={(event) => setJd(event.target.value)}
           />
-          <p className="mt-1.5 text-xs text-muted">
+          <p className="mt-1.5 text-xs text-dim">
             {jd.length.toLocaleString()} characters. More detail means sharper
             questions; a two-line posting produces a thinner kit and says so.
           </p>
@@ -73,44 +109,49 @@ export default function NewKitPage() {
             value={companyUrl}
             onChange={(event) => setCompanyUrl(event.target.value)}
           />
-          <p className="mt-1.5 text-xs text-muted">
+          <p className="mt-1.5 text-xs text-dim">
             Only their own site is read, and only what robots.txt allows.
           </p>
         </div>
 
+        {/* A date rather than a count, because the whole plan is built on it:
+            days become weekdays, the countdown becomes real, and falling
+            behind becomes something the app can notice. */}
         <fieldset>
           <legend className="mb-1.5 text-sm font-medium">
-            Days until the interview
+            When is the interview?
           </legend>
           <div className="flex flex-wrap gap-2">
-            {DAY_PRESETS.map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                aria-pressed={days === preset}
-                onClick={() => setDays(preset)}
-                className={`btn ${
-                  days === preset
-                    ? "bg-edited text-ink"
-                    : "border border-ink-line text-paper hover:bg-ink-line"
-                }`}
-              >
-                {preset} days
-              </button>
-            ))}
             <input
-              type="number"
-              min={1}
-              max={365}
-              aria-label="Days until the interview"
-              className="field w-24"
-              value={days}
-              onChange={(event) => setDays(Number(event.target.value))}
+              type="date"
+              required
+              min={today}
+              aria-label="Interview date"
+              className="field w-auto"
+              value={interviewDate}
+              onChange={(event) => setInterviewDate(event.target.value)}
             />
+            {PRESETS.map((preset) => {
+              const value = addDays(today, preset.days);
+              return (
+                <button
+                  key={preset.days}
+                  type="button"
+                  aria-pressed={interviewDate === value}
+                  onClick={() => setInterviewDate(value)}
+                  className={
+                    interviewDate === value ? "btn-primary" : "btn-ghost"
+                  }
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
           </div>
-          <p className="mt-1.5 text-xs text-muted">
-            This changes the plan, not just its length: a short run front-loads
-            the must-haves and drops review days.
+          <p className="mt-1.5 text-xs text-dim">
+            {daysAway <= 0
+              ? "That is today. You will get a single day's plan and the one-pager."
+              : `${daysAway} study ${daysAway === 1 ? "day" : "days"}, ending the evening before. A short run front-loads the must-haves and drops review days.`}
           </p>
         </fieldset>
 

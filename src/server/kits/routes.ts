@@ -16,7 +16,13 @@ import {
   pinItemSchema,
   setPinned,
 } from "./edit";
-import { createKitSchema, provisionalTitle, type KitRecord } from "./types";
+import {
+  createKitSchema,
+  provisionalTitle,
+  resolvePlanDates,
+  type KitRecord,
+} from "./types";
+import { todayView } from "./today";
 
 const sectionSchema = z.enum(EDITABLE_SECTIONS);
 
@@ -43,6 +49,9 @@ function summarise(record: KitRecord) {
     version: record.version,
     title: record.title,
     request: record.request,
+    interviewDate: record.interviewDate,
+    startDate: record.startDate,
+    timeZone: record.timeZone,
     error: record.error,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
@@ -57,7 +66,11 @@ export function kitRoutes(store: Store, runner: JobRunner): Router {
   async function load(userId: string, kitId: string): Promise<KitRecord> {
     const record = await store.kits.findOne({ _id: kitId, userId });
     if (!record) throw notFound("No such kit");
-    return record;
+
+    // Kits stored before dates and evidence links existed are still readable:
+    // the absent fields are filled in here so nothing downstream has to know
+    // which version of the shape it was handed.
+    return { ...record, evidenceLinks: record.evidenceLinks ?? [] };
   }
 
   router.get(
@@ -78,6 +91,7 @@ export function kitRoutes(store: Store, runner: JobRunner): Router {
     route(async (request, response) => {
       const input = createKitSchema.parse(request.body);
       const at = new Date();
+      const plan = resolvePlanDates(input, at);
 
       const record: KitRecord = {
         _id: randomUUID(),
@@ -85,8 +99,16 @@ export function kitRoutes(store: Store, runner: JobRunner): Router {
         status: "pending",
         version: 0,
         title: provisionalTitle(input.companyUrl),
-        request: input,
+        request: {
+          jd: input.jd,
+          companyUrl: input.companyUrl,
+          days: plan.days,
+        },
+        interviewDate: plan.interviewDate,
+        startDate: plan.startDate,
+        timeZone: plan.timeZone,
         kit: null,
+        evidenceLinks: [],
         error: null,
         createdAt: at,
         updatedAt: at,
@@ -279,11 +301,19 @@ export function kitRoutes(store: Store, runner: JobRunner): Router {
    * links rather than cached, because it depends on the kit's requirements and
    * questions, both of which change under it.
    */
-  router.post(
+  /**
+   * The candidate-side coverage check. Links are persisted here rather than
+   * held in the browser: the audit is a piece of work the user did, and
+   * losing it to a cleared cache or a second machine would make it not worth
+   * doing. The report itself is always recomputed, because it depends on
+   * requirements and questions that regeneration moves underneath it.
+   */
+  router.put(
     "/:kitId/evidence",
     route(async (request, response) => {
       const { links } = evidenceSchema.parse(request.body);
-      const record = await load(request.userId, param(request, "kitId"));
+      const kitId = param(request, "kitId");
+      const record = await load(request.userId, kitId);
       if (!record.kit) throw conflict("Generate this kit before auditing it");
 
       const stories = await store.stories
@@ -296,13 +326,58 @@ export function kitRoutes(store: Store, runner: JobRunner): Router {
         owned.has(link.storyId),
       );
 
+      await store.kits.updateOne(
+        { _id: kitId, userId: request.userId },
+        { $set: { evidenceLinks: usable, updatedAt: new Date() } },
+      );
+
       response.json({
+        links: usable,
         report: checkEvidence(
           record.kit.role.requirements,
           record.kit.questions,
           usable,
         ),
       });
+    }),
+  );
+
+  router.get(
+    "/:kitId/evidence",
+    route(async (request, response) => {
+      const record = await load(request.userId, param(request, "kitId"));
+      if (!record.kit) throw conflict("Generate this kit before auditing it");
+
+      response.json({
+        links: record.evidenceLinks,
+        report: checkEvidence(
+          record.kit.role.requirements,
+          record.kit.questions,
+          record.evidenceLinks,
+        ),
+      });
+    }),
+  );
+
+  /**
+   * The one question the home screen asks. Derived on every read so that a
+   * plan cannot describe a past that did not happen: miss three days and
+   * what comes back is a plan for the days that are left, not a backlog.
+   */
+  router.get(
+    "/:kitId/today",
+    route(async (request, response) => {
+      const kitId = param(request, "kitId");
+      const record = await load(request.userId, kitId);
+
+      const reviews = await store.reviews
+        .find({ userId: request.userId, kitId })
+        .toArray();
+
+      const view = todayView({ record, reviews, now: new Date() });
+      if (!view) throw conflict("This kit has not been generated yet");
+
+      response.json(view);
     }),
   );
 

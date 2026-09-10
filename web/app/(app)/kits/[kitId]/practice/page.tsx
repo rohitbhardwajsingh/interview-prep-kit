@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useKitContext } from "@/components/kit-provider";
 import { api, ApiError } from "@/lib/api";
-import type { KitDetail } from "@/lib/types";
+import { useToday } from "@/lib/use-today";
 
 interface ReviewState {
   questionId: string;
@@ -27,239 +27,242 @@ interface PracticeBody {
   };
 }
 
-const CONFIDENCE: { value: number; label: string; hint: string; tone: string }[] = [
-  { value: 1, label: "No idea", hint: "Back to the start", tone: "border-bad/50 text-bad" },
-  { value: 2, label: "Shaky", hint: "Back to the start", tone: "border-bad/40 text-bad" },
-  { value: 3, label: "Partly", hint: "Same interval again", tone: "border-warn/40 text-warn" },
-  { value: 4, label: "Good", hint: "Longer interval", tone: "border-good/40 text-good" },
-  { value: 5, label: "Nailed it", hint: "Longest interval", tone: "border-good/50 text-good" },
-];
+/**
+ * Five grades, each bound to the digit above the letters. The hint says what
+ * the grade does to the schedule, because a rating whose consequence is
+ * hidden gets guessed at, and a guessed rating makes the spacing worthless.
+ */
+const CONFIDENCE = [
+  { value: 1, label: "No idea", hint: "Start again", tone: "bad" },
+  { value: 2, label: "Shaky", hint: "Start again", tone: "bad" },
+  { value: 3, label: "Partly", hint: "Same interval", tone: "warn" },
+  { value: 4, label: "Good", hint: "Longer gap", tone: "good" },
+  { value: 5, label: "Nailed it", hint: "Longest gap", tone: "good" },
+] as const;
+
+const TONE: Record<string, string> = {
+  bad: "border-bad/40 text-bad hover:border-bad hover:bg-bad/10",
+  warn: "border-warn/40 text-warn hover:border-warn hover:bg-warn/10",
+  good: "border-good/40 text-good hover:border-good hover:bg-good/10",
+};
 
 export default function PracticePage() {
-  const { kitId } = useParams<{ kitId: string }>();
-  const [kit, setKit] = useState<KitDetail | null>(null);
+  const { kit, kitId } = useKitContext();
+  const ready = kit?.status === "ready" && kit.kit !== null;
+  const { today } = useToday(kitId, ready);
+
   const [practice, setPractice] = useState<PracticeBody | null>(null);
-  const [day, setDay] = useState(1);
   const [revealed, setRevealed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // The day comes from the calendar rather than a picker: which day it is is
+  // a fact, not a preference, and asking the user to choose invites them to
+  // quietly re-answer yesterday.
+  const day = today?.calendar.todayDay ?? 1;
+
   const load = useCallback(
-    async (forDay: number, signal?: AbortSignal) => {
+    async (signal?: AbortSignal) => {
+      if (!ready) return;
       try {
-        const [kitBody, practiceBody] = await Promise.all([
-          api<{ kit: KitDetail }>(`/kits/${kitId}`, { signal }),
-          api<PracticeBody>(`/kits/${kitId}/practice?day=${forDay}`, { signal }),
-        ]);
-        setKit(kitBody.kit);
-        setPractice(practiceBody);
+        const body = await api<PracticeBody>(
+          `/kits/${kitId}/practice?day=${day}`,
+          { signal },
+        );
+        setPractice(body);
         setError(null);
       } catch (cause) {
         if (cause instanceof DOMException && cause.name === "AbortError") return;
         setError(cause instanceof ApiError ? cause.message : "Could not load");
       }
     },
-    [kitId],
+    [kitId, day, ready],
   );
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(day, controller.signal);
+    void load(controller.signal);
     return () => controller.abort();
-  }, [load, day]);
+  }, [load]);
 
   const current = practice?.queue[0];
-  const question = kit?.kit?.questions.find((q) => q.id === current?.questionId);
+  const question = kit?.kit?.questions.find(
+    (entry) => entry.id === current?.questionId,
+  );
 
-  async function rate(confidence: number) {
-    if (!current) return;
-    setBusy(true);
-    try {
-      await api(`/kits/${kitId}/practice/${current.questionId}`, {
-        method: "POST",
-        body: { confidence, day },
-      });
-      setRevealed(false);
-      // Re-read rather than mutating locally, so the next item comes from the
-      // same scheduler the server just updated.
-      await load(day);
-    } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : "Could not save that");
-    } finally {
-      setBusy(false);
+  const rate = useCallback(
+    async (confidence: number) => {
+      if (!current || busy) return;
+      setBusy(true);
+      try {
+        await api(`/kits/${kitId}/practice/${current.questionId}`, {
+          method: "POST",
+          body: { confidence, day },
+        });
+        setRevealed(false);
+        // Re-read rather than mutating locally, so the next item comes from
+        // the same scheduler the server just updated.
+        await load();
+      } catch (cause) {
+        setError(
+          cause instanceof ApiError ? cause.message : "Could not save that",
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [current, busy, kitId, day, load],
+  );
+
+  // The whole session is drivable without the mouse: space to see the
+  // answer, then one digit to grade it. Anything slower than that and people
+  // stop doing spaced repetition after two days.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (["INPUT", "TEXTAREA"].includes(target?.tagName ?? "")) return;
+      if (!current) return;
+
+      if (event.key === " " || event.key === "Enter") {
+        event.preventDefault();
+        setRevealed(true);
+        return;
+      }
+
+      const digit = Number(event.key);
+      if (digit >= 1 && digit <= 5) {
+        event.preventDefault();
+        // Grading without looking is allowed: if you knew it, you knew it.
+        void rate(digit);
+      }
     }
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [current, rate]);
+
+  if (!ready) {
+    return <p className="text-sm text-dim">This kit has not been built yet.</p>;
   }
 
-  if (error && !kit) {
+  if (error && !practice) {
     return (
-      <main className="mx-auto max-w-3xl px-6 py-10">
-        <p role="alert" className="text-sm text-bad">
-          {error}
-        </p>
-        <Link href={`/kits/${kitId}`} className="btn-ghost mt-4">
-          Back to the kit
-        </Link>
-      </main>
+      <p role="alert" className="text-sm text-bad">
+        {error}
+      </p>
     );
   }
 
-  if (!practice || !kit) {
-    return (
-      <main className="mx-auto max-w-3xl px-6 py-10">
-        <p className="text-sm text-muted">Loading…</p>
-      </main>
-    );
+  if (!practice) {
+    return <div className="skeleton h-80 w-full" aria-busy="true" />;
   }
+
+  const { progress } = practice;
+  const attempted = progress.total === 0 ? 0 : progress.attempted / progress.total;
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-8">
-      <Link href={`/kits/${kitId}`} className="text-sm text-muted hover:text-paper">
-        ← {kit.title}
-      </Link>
-
-      <header className="mt-4 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Practice</h1>
-          <p className="mt-1 text-sm text-muted">
-            Rate yourself honestly. Weak answers come back sooner.
+    <div className="mx-auto max-w-3xl">
+      <div className="mb-6">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="label">Day {day}</p>
+          <p className="tnum text-xs text-faint">
+            {progress.attempted} of {progress.total} seen · {progress.solid}{" "}
+            solid · {progress.shaky} shaky
           </p>
         </div>
-
-        <label className="text-xs text-muted">
-          Day of your plan
-          <select
-            className="field mt-1 w-24"
-            value={day}
-            onChange={(event) => {
-              setDay(Number(event.target.value));
-              setRevealed(false);
-            }}
-          >
-            {Array.from({ length: practice.daysAvailable }, (_, index) => (
-              <option key={index + 1} value={index + 1}>
-                Day {index + 1}
-              </option>
-            ))}
-          </select>
-        </label>
-      </header>
-
-      <div className="mt-6 grid grid-cols-4 gap-2 text-center">
-        {(
-          [
-            ["Due now", practice.progress.dueToday, "text-paper"],
-            ["Seen", practice.progress.attempted, "text-muted"],
-            ["Solid", practice.progress.solid, "text-good"],
-            ["Shaky", practice.progress.shaky, "text-warn"],
-          ] as const
-        ).map(([label, value, tone]) => (
-          <div key={label} className="card p-3">
-            <p className={`text-xl font-semibold ${tone}`}>{value}</p>
-            <p className="text-[11px] text-muted">{label}</p>
-          </div>
-        ))}
+        <div className="mt-2 h-1 overflow-hidden rounded-full bg-line">
+          <div
+            className="h-full rounded-full bg-accent transition-[width]
+              duration-500 ease-spring"
+            style={{ width: `${Math.max(1, attempted * 100)}%` }}
+          />
+        </div>
       </div>
 
-      {error && (
-        <p
-          role="alert"
-          className="mt-4 rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad"
-        >
-          {error}
-        </p>
-      )}
-
       {!current || !question ? (
-        <div className="card mt-8 p-8 text-center">
-          <p className="font-medium">Nothing due on day {day}</p>
-          <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted">
-            {practice.progress.attempted === 0
-              ? "This kit has no questions to practise yet."
-              : "Everything you have rated is scheduled for a later day. Move the day forward to look ahead."}
+        <section className="card p-10 text-center animate-scale-in">
+          <h2 className="text-xl font-medium">Nothing due right now</h2>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-dim">
+            {progress.attempted === 0
+              ? "This kit has not been practised yet. Come back when there is a plan for today."
+              : "Everything scheduled for today has been through once. The next items come back on their own."}
           </p>
-        </div>
+          <Link href={`/kits/${kitId}`} className="btn-ghost mt-6">
+            Back to today
+          </Link>
+        </section>
       ) : (
-        <article className="card mt-8 p-6">
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <span className="font-mono text-[11px] text-muted">
-              {question.id}
-            </span>
-            <span className="chip border-ink-line text-muted">
+        <section className="card p-8 animate-scale-in sm:p-10">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="chip border-line text-faint">
               {question.category}
             </span>
-            {current.timesSeen === 0 ? (
-              <span className="chip border-edited/50 text-edited">First time</span>
-            ) : (
-              <span className="chip border-ink-line text-muted">
-                seen {current.timesSeen}× · box {current.box}
+            <span className="chip border-line text-faint">
+              box {current.box}
+            </span>
+            {current.timesSeen > 0 && (
+              <span className="chip border-line text-faint">
+                seen {current.timesSeen}×
               </span>
             )}
           </div>
 
-          <h2 className="text-lg font-medium leading-snug">{question.prompt}</h2>
+          <h2 className="mt-5 text-2xl font-medium leading-snug">
+            {question.prompt}
+          </h2>
 
-          <p className="mt-3 flex flex-wrap gap-1.5">
-            {question.requirement_ids.map((id) => (
-              <span
-                key={id}
-                title={kit.kit?.role.requirements.find((r) => r.id === id)?.text}
-                className="chip border-ink-line text-muted"
-              >
-                {id}
-              </span>
-            ))}
-          </p>
-
-          {/* Answer first, then rate: seeing the outline before committing to
-              an answer is how people talk themselves into "I knew that". */}
           {revealed ? (
-            <>
-              <div className="mt-5 rounded-lg border border-ink-line bg-ink p-4">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-                  What a good answer covers
-                </p>
-                <p className="whitespace-pre-wrap text-sm text-paper">
-                  {question.answer_outline}
-                </p>
-              </div>
-
-              <fieldset className="mt-5" disabled={busy}>
-                <legend className="mb-2 text-sm">How did that go?</legend>
-                <div className="flex flex-wrap gap-2">
-                  {CONFIDENCE.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => void rate(option.value)}
-                      className={`btn border ${option.tone} flex-col items-start
-                        gap-0 px-3 py-2 hover:bg-ink-line disabled:opacity-40`}
-                    >
-                      <span className="text-sm font-medium">{option.label}</span>
-                      <span className="text-[10px] font-normal text-muted">
-                        {option.hint}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-            </>
+            <div className="mt-6 rounded-xl border border-line bg-void p-5 animate-fade-up">
+              <p className="label">What a good answer covers</p>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-dim">
+                {question.answer_outline}
+              </p>
+            </div>
           ) : (
             <button
               type="button"
-              className="btn-primary mt-5"
               onClick={() => setRevealed(true)}
+              className="btn-ghost mt-6 w-full justify-center py-4"
             >
-              Answer it out loud, then reveal
+              Say your answer out loud, then reveal
+              <kbd className="kbd">space</kbd>
             </button>
           )}
-        </article>
+
+          <div className="mt-8">
+            <p className="label">How did that go?</p>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {CONFIDENCE.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void rate(option.value)}
+                  className={`flex flex-col items-center gap-0.5 rounded-xl
+                    border bg-surface px-3 py-3 text-sm transition
+                    disabled:opacity-40 ${TONE[option.tone]}`}
+                >
+                  <kbd className="kbd mb-1">{option.value}</kbd>
+                  <span className="font-medium">{option.label}</span>
+                  <span className="text-[10px] text-faint">{option.hint}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
       )}
 
-      {practice.queue.length > 1 && (
-        <p className="mt-4 text-center text-xs text-muted">
-          {practice.queue.length - 1} more due after this one
+      {error && (
+        <p role="alert" className="mt-4 text-sm text-bad">
+          {error}
         </p>
       )}
-    </main>
+
+      <p className="mt-6 text-center text-xs text-faint">
+        <kbd className="kbd">space</kbd> reveal ·{" "}
+        <kbd className="kbd">1</kbd>–<kbd className="kbd">5</kbd> grade ·{" "}
+        <kbd className="kbd">t</kbd> back to today
+      </p>
+    </div>
   );
 }

@@ -79,7 +79,7 @@ export default function StoriesPage() {
   return (
     <main className="mx-auto max-w-5xl px-6 py-10">
       <h1 className="text-2xl font-semibold tracking-tight">Story bank</h1>
-      <p className="mt-1 max-w-2xl text-sm text-muted">
+      <p className="mt-1 max-w-2xl text-sm text-dim">
         The things you have actually done. Record them once here and every kit
         can check its requirements against them — because knowing an answer and
         having a story are not the same thing.
@@ -99,7 +99,7 @@ export default function StoriesPage() {
           {stories?.length === 0 && (
             <div className="card p-6 text-center">
               <p className="font-medium">No stories yet</p>
-              <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted">
+              <p className="mx-auto mt-1.5 max-w-sm text-sm text-dim">
                 Most people have six or seven that cover almost everything.
                 Start with the projects you would mention unprompted.
               </p>
@@ -114,7 +114,7 @@ export default function StoriesPage() {
                   <div className="flex shrink-0 gap-2">
                     <button
                       type="button"
-                      className="text-xs text-muted hover:text-paper"
+                      className="text-xs text-dim hover:text-paper"
                       onClick={() => {
                         setEditingId(story.id);
                         setDraft({
@@ -130,7 +130,7 @@ export default function StoriesPage() {
                     </button>
                     <button
                       type="button"
-                      className="text-xs text-muted hover:text-bad"
+                      className="text-xs text-dim hover:text-bad"
                       onClick={() => void remove(story.id)}
                     >
                       Delete
@@ -141,7 +141,7 @@ export default function StoriesPage() {
                 {story.tags.length > 0 && (
                   <p className="mt-2 flex flex-wrap gap-1.5">
                     {story.tags.map((tag) => (
-                      <span key={tag} className="chip border-ink-line text-muted">
+                      <span key={tag} className="chip border-line text-dim">
                         {tag}
                       </span>
                     ))}
@@ -159,10 +159,10 @@ export default function StoriesPage() {
                     .filter(([, text]) => text)
                     .map(([label, text]) => (
                       <div key={label}>
-                        <dt className="text-[11px] uppercase tracking-wide text-muted">
+                        <dt className="text-[11px] uppercase tracking-wide text-dim">
                           {label}
                         </dt>
-                        <dd className="mt-0.5 whitespace-pre-wrap text-muted">
+                        <dd className="mt-0.5 whitespace-pre-wrap text-dim">
                           {text}
                         </dd>
                       </div>
@@ -179,7 +179,7 @@ export default function StoriesPage() {
           </h2>
 
           <div>
-            <label htmlFor="title" className="mb-1 block text-xs text-muted">
+            <label htmlFor="title" className="mb-1 block text-xs text-dim">
               What would you call it?
             </label>
             <input
@@ -202,7 +202,7 @@ export default function StoriesPage() {
             ] as const
           ).map(([key, label, hint]) => (
             <div key={key}>
-              <label htmlFor={key} className="mb-1 block text-xs text-muted">
+              <label htmlFor={key} className="mb-1 block text-xs text-dim">
                 {label}
               </label>
               <textarea
@@ -219,7 +219,7 @@ export default function StoriesPage() {
           ))}
 
           <div>
-            <label htmlFor="tags" className="mb-1 block text-xs text-muted">
+            <label htmlFor="tags" className="mb-1 block text-xs text-dim">
               Skills it shows
             </label>
             <input
@@ -231,7 +231,7 @@ export default function StoriesPage() {
                 setDraft({ ...draft, tags: event.target.value })
               }
             />
-            <p className="mt-1 text-[11px] text-muted">Comma separated.</p>
+            <p className="mt-1 text-[11px] text-dim">Comma separated.</p>
           </div>
 
           <div className="flex gap-2 pt-1">

@@ -40,7 +40,7 @@ export function ConflictDialog({ conflict, onResolve, onCancel }: Props) {
   }, [onCancel]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-void/80 p-4">
       <div
         ref={dialog}
         role="dialog"
@@ -52,7 +52,7 @@ export function ConflictDialog({ conflict, onResolve, onCancel }: Props) {
         <h2 id="conflict-title" className="text-lg font-semibold">
           This changed while you were editing
         </h2>
-        <p className="mt-1 text-sm text-muted">
+        <p className="mt-1 text-sm text-dim">
           Someone or something else saved a new version of{" "}
           <span className="font-mono text-xs text-paper">{conflict.field}</span>{" "}
           first. Nothing has been lost — decide what to keep.
@@ -79,8 +79,8 @@ export function ConflictDialog({ conflict, onResolve, onCancel }: Props) {
               </h3>
               <p className="whitespace-pre-wrap text-sm">{conflict.yours}</p>
             </section>
-            <section className="rounded-lg border border-ink-line p-3">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+            <section className="rounded-lg border border-line p-3">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-dim">
                 Now saved
               </h3>
               <p className="whitespace-pre-wrap text-sm">{conflict.theirs}</p>
