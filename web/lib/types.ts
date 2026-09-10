@@ -66,6 +66,18 @@ export interface Kit {
   coverage: { uncovered_requirement_ids: string[]; passes: number };
 }
 
+/** The vital signs of a kit, sent with the list so the dashboard can rank. */
+export interface KitPulse {
+  readiness: number;
+  band: Readiness["band"];
+  nextAction: string;
+  daysUntilInterview: number;
+  isInterviewDay: boolean;
+  isPast: boolean;
+  questionsTotal: number;
+  questionsSeen: number;
+}
+
 export interface KitSummary {
   id: string;
   status: KitStatus;
@@ -76,6 +88,8 @@ export interface KitSummary {
   interviewDate: string | null;
   startDate: string | null;
   timeZone: string | null;
+  /** Present once the kit is ready; null while it is still building. */
+  pulse: KitPulse | null;
   error: { code: string; message: string } | null;
   createdAt: string;
   updatedAt: string;

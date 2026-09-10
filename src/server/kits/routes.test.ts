@@ -603,6 +603,46 @@ describe.skipIf(!available)("kit routes", () => {
     });
   });
 
+  describe("the kits list", () => {
+    it("carries each ready kit's pulse, so the dashboard needs no extra calls", async () => {
+      const { agent } = await generated();
+
+      const list = await agent.get("/kits").expect(200);
+      const [summary] = list.body.kits;
+
+      expect(summary.pulse).toBeTruthy();
+      expect(summary.pulse.daysUntilInterview).toBeGreaterThanOrEqual(0);
+      expect(summary.pulse.questionsTotal).toBe(3);
+      expect(summary.pulse.questionsSeen).toBe(0);
+      // Untouched kit, so the honest readiness is zero.
+      expect(summary.pulse.readiness).toBe(0);
+      expect(summary.pulse.nextAction).toBeTruthy();
+    });
+
+    it("reflects practice in the pulse without opening the kit", async () => {
+      const { agent, kitId } = await generated();
+      await agent
+        .post(`/kits/${kitId}/practice/q1`)
+        .send({ confidence: 5, day: 1 })
+        .expect(200);
+
+      const list = await agent.get("/kits").expect(200);
+      const summary = list.body.kits.find(
+        (kit: { id: string }) => kit.id === kitId,
+      );
+
+      expect(summary.pulse.questionsSeen).toBe(1);
+      expect(summary.pulse.readiness).toBeGreaterThan(0);
+    });
+
+    it("leaves the pulse null for a kit that never generated", async () => {
+      const { agent } = await generated({ ...SCRIPT, failOn: "research" });
+
+      const list = await agent.get("/kits").expect(200);
+      expect(list.body.kits[0].pulse).toBeNull();
+    });
+  });
+
   describe("today", () => {
     it("answers with a countdown, a readiness score and a plan", async () => {
       const { agent, kitId } = await generated();

@@ -1,16 +1,14 @@
-import { checkEvidence } from "../../core/evidence/check";
 import type { KitQuestion } from "../../core/kit/schema";
 import { untrackKit } from "../../core/kit/tracked";
 import type { ReviewState } from "../../core/practice/leitner";
 import { scoreReadiness, type Readiness } from "../../core/readiness/score";
 import {
-  buildCalendar,
-  civilDateOf,
   describeCountdown,
   type StudyCalendar,
 } from "../../core/schedule/calendar";
 import { replanSchedule, type ReplanReport } from "../../core/schedule/replan";
 import type { KitScheduleDay } from "../../core/kit/schema";
+import { evidencedRequirementIds, kitCalendar } from "./derive";
 import type { KitRecord } from "./types";
 
 export interface TodayInput {
@@ -47,26 +45,7 @@ export function todayView({
   if (!record.kit) return null;
 
   const kit = untrackKit(record.kit);
-  const timeZone = record.timeZone ?? "UTC";
-  const today = civilDateOf(now, timeZone);
-
-  // Kits made before dates were asked for still work: they are treated as
-  // having started when they were created.
-  const startDate = record.startDate ?? civilDateOf(record.createdAt, timeZone);
-  const interviewDate =
-    record.interviewDate ??
-    civilDateOf(
-      new Date(record.createdAt.getTime() + kit.schedule.days_available * 86_400_000),
-      timeZone,
-    );
-
-  const calendar = buildCalendar({
-    schedule: kit.schedule,
-    startDate,
-    interviewDate,
-    today,
-    timeZone,
-  });
+  const calendar = kitCalendar(record, kit, now);
 
   // A question counts as done once it has been answered at all; the Leitner
   // box then decides how well, which readiness reads separately.
@@ -87,25 +66,6 @@ export function todayView({
     .map((id) => byId.get(id))
     .filter((question): question is KitQuestion => question !== undefined);
 
-  // Evidence only counts towards readiness once the user has actually linked
-  // something, so an unused story bank stays out of the score.
-  const evidence =
-    record.evidenceLinks.length > 0
-      ? checkEvidence(
-          kit.role.requirements,
-          kit.questions,
-          record.evidenceLinks,
-        )
-      : null;
-
-  const evidencedRequirementIds = evidence
-    ? kit.role.requirements
-        .map((requirement) => requirement.id)
-        .filter(
-          (id) => !evidence.unevidenced_requirement_ids.includes(id),
-        )
-    : undefined;
-
   return {
     calendar,
     countdown: describeCountdown(calendar),
@@ -113,7 +73,7 @@ export function todayView({
       requirements: kit.role.requirements,
       questions: kit.questions,
       reviews,
-      evidencedRequirementIds,
+      evidencedRequirementIds: evidencedRequirementIds(record, kit),
     }),
     plan,
     questions,

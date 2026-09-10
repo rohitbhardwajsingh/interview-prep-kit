@@ -8,15 +8,9 @@
   }
 
   body {
+    /* Atmosphere is provided by the fixed <Ambient> layer, so the body itself
+       stays plain and lets it show through. */
     @apply bg-void text-paper antialiased;
-    /* A very slight warmth from above stops the darkest surfaces reading as
-       a switched-off screen. */
-    background-image: radial-gradient(
-      120% 80% at 50% -20%,
-      rgba(124, 92, 255, 0.08),
-      transparent 60%
-    );
-    background-attachment: fixed;
   }
 
   /* Focus is always visible: this app is meant to be driven from the
@@ -108,6 +102,62 @@
 }
 
 @layer utilities {
+  /* The ambient background: slow, blurred colour fields plus a faint grid. */
+  .ambient-blob {
+    @apply absolute rounded-full blur-[100px];
+    opacity: 0.5;
+    will-change: transform;
+  }
+
+  .ambient-blob-a {
+    width: 42rem;
+    height: 42rem;
+    top: -14rem;
+    left: -10rem;
+    background: radial-gradient(circle, rgba(139, 92, 255, 0.5), transparent 70%);
+    animation: drift-a 26s ease-in-out infinite;
+  }
+
+  .ambient-blob-b {
+    width: 34rem;
+    height: 34rem;
+    top: -8rem;
+    right: -8rem;
+    background: radial-gradient(circle, rgba(34, 211, 238, 0.32), transparent 70%);
+    animation: drift-b 32s ease-in-out infinite;
+  }
+
+  .ambient-blob-c {
+    width: 30rem;
+    height: 30rem;
+    bottom: -12rem;
+    left: 30%;
+    background: radial-gradient(circle, rgba(52, 224, 161, 0.2), transparent 70%);
+    animation: drift-c 38s ease-in-out infinite;
+  }
+
+  .ambient-grid {
+    @apply absolute inset-0;
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(120% 90% at 50% 0%, black 30%, transparent 80%);
+  }
+
+  @keyframes drift-a {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(6rem, 4rem) scale(1.1); }
+  }
+  @keyframes drift-b {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-5rem, 5rem) scale(1.15); }
+  }
+  @keyframes drift-c {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-4rem, -3rem) scale(1.05); }
+  }
+
   /* Staggers children into view. Set --i on each child. */
   .stagger > * {
     animation: fade-up 320ms cubic-bezier(0.22, 1.4, 0.36, 1) both;

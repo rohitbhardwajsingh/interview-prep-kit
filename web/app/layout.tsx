@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Ambient } from "@/components/ambient";
 import { SessionProvider } from "@/components/session";
 import "./globals.css";
 
@@ -16,6 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-dvh">
+        <Ambient />
         {/* One provider for the whole app, so crossing between the signed-in
             and signed-out areas does not re-ask who the user is. */}
         <SessionProvider>{children}</SessionProvider>

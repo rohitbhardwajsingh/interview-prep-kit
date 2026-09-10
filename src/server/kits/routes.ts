@@ -22,6 +22,7 @@ import {
   resolvePlanDates,
   type KitRecord,
 } from "./types";
+import { kitPulse } from "./pulse";
 import { todayView } from "./today";
 
 const sectionSchema = z.enum(EDITABLE_SECTIONS);
@@ -82,7 +83,30 @@ export function kitRoutes(store: Store, runner: JobRunner): Router {
         .limit(100)
         .toArray();
 
-      response.json({ kits: kits.map(summarise) });
+      // Every review the user has, in one query rather than one per kit, then
+      // grouped in memory. The list is a dashboard now: each ready kit carries
+      // its pulse so the client can rank and render without opening any of them.
+      const reviews = await store.reviews
+        .find({ userId: request.userId })
+        .toArray();
+      const reviewsByKit = new Map<string, typeof reviews>();
+      for (const review of reviews) {
+        const bucket = reviewsByKit.get(review.kitId) ?? [];
+        bucket.push(review);
+        reviewsByKit.set(review.kitId, bucket);
+      }
+
+      const now = new Date();
+      response.json({
+        kits: kits.map((record) => ({
+          ...summarise(record),
+          pulse: kitPulse(
+            { ...record, evidenceLinks: record.evidenceLinks ?? [] },
+            reviewsByKit.get(record._id) ?? [],
+            now,
+          ),
+        })),
+      });
     }),
   );
 
