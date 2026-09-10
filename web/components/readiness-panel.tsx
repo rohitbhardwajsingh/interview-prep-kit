@@ -31,16 +31,20 @@ export function ReadinessPanel({ readiness }: { readiness: Readiness }) {
         </div>
       </Ring>
 
-      <div className="w-full min-w-0 flex-1 space-y-3">
+      <div className="w-full min-w-0 max-w-lg flex-1 space-y-3">
         {readiness.components.map((component) => (
           <div key={component.id}>
             <div className="flex items-baseline justify-between gap-3 text-sm">
               <span className="text-paper">{component.label}</span>
               <span className="tnum text-xs text-faint">
                 {Math.round(component.score * 100)}%
-                <span className="ml-1.5 text-faint/70">
-                  ({Math.round(component.weight * 100)}% of the score)
-                </span>
+                {/* The weighting is only worth stating when there is more
+                    than one part to weigh against. */}
+                {readiness.components.length > 1 && (
+                  <span className="ml-1.5 text-faint/70">
+                    ({Math.round(component.weight * 100)}% of the score)
+                  </span>
+                )}
               </span>
             </div>
 

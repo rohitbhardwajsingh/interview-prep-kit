@@ -211,17 +211,72 @@ because an item you could not answer is unlearned rather than slightly less
 known. Nothing is ever scheduled past the interview. Ordering is total and
 derived only from stored state, so the same inputs always produce the same queue.
 
+The whole session is drivable from the keyboard: space reveals the answer, then
+one digit grades it. Anything slower and people stop doing spaced repetition
+after two days.
+
+---
+
+## The plan is anchored to a date, and recut when you fall behind
+
+A kit is created against an **interview date**, not a day count. "Seven days" is
+the question a scheduler wants to ask and the worst one to ask a person: seven
+days from when, and does that include the morning of? A date removes the
+arithmetic, turns Day 3 into Thursday, and makes a countdown possible.
+
+Every study plan then breaks the same way: it is written once, the user misses
+two days, and from then on it describes a past that did not happen. So the plan
+shown on the home screen is **recomputed on every read** rather than stored:
+whatever is still unpractised is allocated across whatever days are left, by the
+same allocator that built it originally.
+
+When it will not fit, it cuts rather than lies. Nice-to-have material is
+deferred before must-have material, and if the must-haves alone still overflow a
+sustainable day it says so instead of quietly producing a four-hour Tuesday.
+
+All of it is civil-date arithmetic in UTC, never timestamps — a plan spanning a
+daylight-saving change contains a 23-hour day, and counting in local time gets
+"which day is today" wrong by one.
+
+---
+
+## Readiness is a number you can argue with
+
+One score, 0–100, on the home screen. Two rules govern it.
+
+**It is honest.** Only work the user actually did earns points. Coverage is
+deliberately excluded from the numerator — it is the generator's achievement,
+not the candidate's, and letting a well-built kit contribute would mean opening
+the app and closing it again scored twenty per cent. An untouched kit scores
+zero. Practice is measured by Leitner box rather than by attempts, because a
+question answered confidently once is not as safe as one that has survived four
+spaced sightings.
+
+**It is explainable.** The number always decomposes into named components with
+their own sentences and weights, and it names the single highest-leverage next
+action. Missing coverage applies as a *ceiling* rather than a deduction: you
+cannot be ready for a requirement nothing asks you about, so if half the
+must-haves are untested the score cannot pass fifty however hard you practise.
+
+Evidence is dropped from the score entirely when the story bank is unused, its
+weight redistributed, so declining to use a feature cannot make you look
+unprepared.
+
 ---
 
 ## Testing
 
 ```bash
-npm test          # 446 tests across 34 files
+npm test          # 512 tests across 37 files
 npm run typecheck
 ```
 
-Server tests run against a real MongoDB rather than mocks, and skip with a clear
-reason if one is not reachable:
+No setup, no API key, no network calls. Server tests run against a real MongoDB
+rather than mocks: if one is listening on port 27019 the suite uses it, and if
+not it starts an in-memory server for the run. Docker is therefore optional for
+testing.
+
+To test against your own Mongo instead:
 
 ```bash
 docker run -d --name prepkit-test-mongo -p 27019:27017 mongo:7
@@ -287,7 +342,12 @@ can be checked rather than taken on trust.
 - **JavaScript-rendered sites read thin.** The crawler fetches HTML and does not
   execute scripts, so a fully client-rendered site yields a sparse brief. It
   reports what it found rather than inventing the rest.
-- **Evidence links are per-browser.** They are stored locally rather than in the
-  database, so the audit does not follow you to another machine.
 - **One shared rate limit.** Concurrent cases share one budget, which costs
   throughput under a free-tier key but avoids being throttled.
+- **Readiness does not know what you said out loud.** Practice is self-graded,
+  so the score measures honest self-assessment rather than answer quality.
+  Grading the content would need a model call per answer and a far stronger
+  claim than this system can support.
+- **Deferred questions are not resurfaced.** When a replan sets nice-to-have
+  material aside to make the must-haves fit, it is reported but there is no way
+  to pull an individual question back in.
