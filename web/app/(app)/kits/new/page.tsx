@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Upload } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import type { KitSummary } from "@/lib/types";
 
@@ -183,6 +183,166 @@ export default function NewKitPage() {
           {busy ? "Starting…" : "Build my kit"}
         </button>
       </form>
+
+      <BulkUpload />
     </main>
+  );
+}
+
+interface BulkCase {
+  id?: string;
+  jd?: string;
+  company_url?: string;
+  days?: number;
+}
+
+interface BulkProgress {
+  total: number;
+  done: number;
+  failed: number;
+  message: string;
+}
+
+/**
+ * Preparing for several roles at once, by uploading the same case file the
+ * batch command takes. Each row becomes a kit through the ordinary create
+ * endpoint — the same path the single form uses — so there is no second,
+ * divergent way to make a kit. One failure does not stop the rest.
+ */
+function BulkUpload() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<BulkProgress | null>(null);
+
+  async function onFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setError(null);
+    setProgress(null);
+
+    let cases: BulkCase[];
+    try {
+      const parsed = JSON.parse(await file.text());
+      cases = Array.isArray(parsed) ? parsed : parsed?.cases;
+      if (!Array.isArray(cases)) throw new Error();
+    } catch {
+      setError(
+        "That file could not be read. Expected a JSON array of { jd, company_url, days }.",
+      );
+      return;
+    }
+
+    const usable = cases.filter((entry) => entry.jd && entry.company_url);
+    if (usable.length === 0) {
+      setError("No usable cases found. Each needs at least a jd and a company_url.");
+      return;
+    }
+
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    let done = 0;
+    let failed = 0;
+
+    for (const [index, entry] of usable.entries()) {
+      setProgress({
+        total: usable.length,
+        done,
+        failed,
+        message: `Starting ${index + 1} of ${usable.length}…`,
+      });
+      try {
+        await api("/kits", {
+          method: "POST",
+          body: {
+            jd: entry.jd,
+            companyUrl: entry.company_url,
+            days: entry.days && entry.days > 0 ? entry.days : 7,
+            timeZone,
+          },
+        });
+        done += 1;
+      } catch {
+        // One bad row must not abort the batch, exactly like the CLI.
+        failed += 1;
+      }
+    }
+
+    setProgress({
+      total: usable.length,
+      done,
+      failed,
+      message: "Done. Your kits are building.",
+    });
+    // Let them read the summary, then send them to watch the dashboard.
+    setTimeout(() => router.push("/kits"), 1_200);
+  }
+
+  return (
+    <section className="mt-10 border-t border-line pt-8">
+      <button
+        type="button"
+        onClick={() => setOpen((was) => !was)}
+        className="flex w-full items-center justify-between text-left"
+      >
+        <span>
+          <span className="flex items-center gap-2 font-medium">
+            <Upload className="h-4 w-4 text-cyan" />
+            Preparing for several roles?
+          </span>
+          <span className="mt-0.5 block text-sm text-dim">
+            Upload a file of description-and-company pairs and build them all at
+            once.
+          </span>
+        </span>
+        <span className="text-faint">{open ? "−" : "+"}</span>
+      </button>
+
+      {open && (
+        <div className="mt-4 space-y-3">
+          <label
+            className="flex cursor-pointer flex-col items-center justify-center
+              gap-2 rounded-xl border border-dashed border-line-strong
+              bg-surface px-4 py-8 text-center transition hover:border-cyan/50"
+          >
+            <Upload className="h-6 w-6 text-faint" />
+            <span className="text-sm text-dim">
+              Choose a JSON file of{" "}
+              <code className="text-faint">
+                {"[{ jd, company_url, days }]"}
+              </code>
+            </span>
+            <input
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(event) => void onFile(event)}
+            />
+          </label>
+
+          {error && <p className="text-sm text-bad">{error}</p>}
+
+          {progress && (
+            <div className="rounded-xl border border-line bg-surface p-4 text-sm">
+              <p className="text-paper">{progress.message}</p>
+              <p className="mt-1 text-xs text-dim">
+                {progress.done} created
+                {progress.failed > 0 ? ` · ${progress.failed} failed` : ""} of{" "}
+                {progress.total}
+              </p>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-line">
+                <div
+                  className="h-full rounded-full bg-cyan transition-[width]"
+                  style={{
+                    width: `${((progress.done + progress.failed) / progress.total) * 100}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }

@@ -94,6 +94,32 @@ src/
 through a port, which is why the pipeline can be tested end to end against fakes
 with no network and no key.
 
+### How the research and generation are sequenced
+
+Both the interface and the batch command run the one path in
+`core/pipeline/run-kit.ts`, in this order. The sequencing is genuine: each step
+responds to what the last one found, and the two deterministic steps are never
+handed to the model.
+
+1. **`extract-role`** — pulls requirements from the pasted JD *alone* (no
+   crawled text can leak in), each marked `must`/`nice` with a stable id.
+2. **`research-company`** — crawls the company's own site: ranks links, finds
+   the about and hiring pages (paths are discovered, never hard-coded), and
+   summarises a brief with cited sources.
+3. **`search-public-discussion`** — a *separate* best-effort look beyond the
+   company's site for public accounts of how it interviews. Time-boxed and
+   failure-swallowing: nothing found is reported honestly, never fabricated.
+4. **`generate-questions`** — writes questions for the requirements, given the
+   brief, the hiring process and any public discussion, so a company known for a
+   system-design round produces a different kit.
+5. **coverage loop (code)** — `checkCoverage` finds must-haves with no question;
+   the pipeline re-asks *only* for those, re-checks, and repeats up to three
+   passes, stopping early if a pass closes no gaps.
+6. **`generate-flashcards`**, then **`allocate-schedule` (code)** — the schedule
+   is arithmetic, decided here, not by a prompt.
+7. **`validate-kit`** — the kit is validated against the Appendix A schema before
+   it is ever saved or returned.
+
 ---
 
 ## The decisions worth defending
@@ -124,6 +150,22 @@ are protected, because a guarantee the user cannot see is not one they can act
 on. New items continue the id sequence rather than reusing the ids of items just
 discarded, so a pin or a practice record can never quietly reattach to different
 content.
+
+### The builder is a real editor
+
+Every part of a kit can be reshaped: edit any question, answer outline,
+flashcard or the company brief inline; **reorder** questions; **move** a question
+to another category; **add** a question or flashcard by hand; and **delete**
+either. A hand-added item is `edited` from birth, so a regeneration never sweeps
+it away. Every write carries the version it was made against and is refused if
+the kit moved underneath it.
+
+Two "sections" are regenerated differently on purpose. The **schedule** is
+deterministic, so rather than a button that re-runs the same arithmetic to the
+same result, it is *recomputed automatically* after every edit that could change
+it — a stronger guarantee than a manual trigger. The **brief** is prose the user
+most often wants to word themselves, so it is directly editable; a full rebuild
+(which re-crawls) remains available via regenerating the whole kit.
 
 If the user edits the kit while a rebuild is running, the write is refused and
 the regenerated result is thrown away: their words outrank the model's, and
@@ -351,3 +393,11 @@ can be checked rather than taken on trust.
 - **Deferred questions are not resurfaced.** When a replan sets nice-to-have
   material aside to make the must-haves fit, it is reported but there is no way
   to pull an individual question back in.
+- **Public discussion depends on a public company.** The search step is genuine
+  but keyless, and the batch cases use local/fictional companies, so it usually
+  returns nothing — which is the honest result the brief asks for, not a gap.
+- **Questions are generated in one pass, then per-gap.** The first draft is a
+  single call spanning categories; the coverage loop then makes *separate*,
+  targeted calls for what is uncovered. This keeps the run inside the free-tier
+  rate budget (five cases in fifteen minutes) rather than fanning out one call
+  per category, which is the deliberate trade-off.
