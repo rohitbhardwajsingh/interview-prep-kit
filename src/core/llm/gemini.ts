@@ -12,7 +12,7 @@ import {
 } from "./types";
 
 /** The most capable model a key reaches without billing enabled. */
-export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+export const DEFAULT_GEMINI_MODEL = "gemini-3.6-flash";
 export const DEFAULT_GEMINI_BASE_URL =
   "https://generativelanguage.googleapis.com/v1beta";
 
