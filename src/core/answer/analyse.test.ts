@@ -165,7 +165,56 @@ describe("analyseAnswer", () => {
       expect(result.notes.join(" ")).toContain("as opposed to the team");
     });
 
-    it("does not mistake a word containing 'ive' for saying 'I've'", () => {
+    /**
+   * These came from a real answer that scored well on every other measure
+   * and was still told it had no result and no situation. A STAR check that
+   * only fires on a fixed list of verbs fails the answers people actually
+   * give, and being wrong here is worse than being silent: it sends someone
+   * to rewrite the one part of their answer that was already fine.
+   */
+  it("counts a closing figure as the result, however it is phrased", () => {
+    const analysis = analyseAnswer({
+      transcript:
+        "The dashboard was timing out so I measured it with Datadog and the query was a sequential scan at 800ms. I chose a composite index on tenant_id and created_at. Afterwards the latency figure came in at 120ms.",
+      question: { answer_outline: OUTLINE, category: "behavioural" },
+    });
+
+    expect(analysis.star.result).toBe(true);
+    expect(analysis.notes.join(" ")).not.toContain("No measurable result");
+  });
+
+  it("recognises a scene set without any of the stock phrases", () => {
+    const analysis = analyseAnswer({
+      transcript:
+        "The dashboard was timing out for our largest tenant. I profiled it and added an index, and it came down to 120ms.",
+      question: { answer_outline: OUTLINE, category: "behavioural" },
+    });
+
+    expect(analysis.star.situation).toBe(true);
+  });
+
+  it("still refuses a result that is only a claim", () => {
+    const analysis = analyseAnswer({
+      transcript:
+        "We had a slow endpoint and I improved it and afterwards everyone was much happier with how it performed.",
+      question: { answer_outline: OUTLINE, category: "behavioural" },
+    });
+
+    // "Improved" and "afterwards" are both there; a number is not.
+    expect(analysis.star.result).toBe(false);
+  });
+
+  it("does not call a bare opening a situation", () => {
+    const analysis = analyseAnswer({
+      transcript:
+        "I add an index. I check the query plan. I deploy it and I move on to the next ticket.",
+      question: { answer_outline: OUTLINE, category: "behavioural" },
+    });
+
+    expect(analysis.star.situation).toBe(false);
+  });
+
+  it("does not mistake a word containing 'ive' for saying 'I've'", () => {
       // "delivery" and "five" both contain the letters; neither is the
       // candidate claiming to have done anything.
       const result = analyseAnswer({

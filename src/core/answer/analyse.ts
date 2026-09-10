@@ -210,7 +210,40 @@ function saysAnyOf(text: string, cues: readonly string[]): boolean {
   });
 }
 
+/**
+ * Whether the answer ends on a number.
+ *
+ * A cue list can only ever recognise the phrasings someone thought of, and
+ * "the latency came in at 120ms" is a result by any reading. What actually
+ * distinguishes a result is structural: the concrete figure arrives at the
+ * end, after the action. So the closing third is checked directly, which
+ * catches the phrasings no list would have.
+ */
+function closesOnAFigure(transcript: string): boolean {
+  const spoken = words(transcript);
+  if (spoken.length < 6) return false;
+
+  const closing = spoken.slice(Math.floor(spoken.length * 0.66)).join(" ");
+  return /\d/.test(closing);
+}
+
+/**
+ * Whether the answer opens by describing a state rather than an action.
+ *
+ * "The dashboard was timing out" sets a scene without using any of the
+ * phrases a cue list would hold. The reliable signal is grammatical: a past
+ * continuous or past perfect construction in the opening sentence is someone
+ * describing how things were before they got involved.
+ */
+function opensOnAScene(transcript: string): boolean {
+  const [first] = sentences(transcript);
+  if (!first) return false;
+
+  return /\b(was|were|had|kept|used to|noticed|started)\b/i.test(first);
+}
+
 function checkStar(
+  transcript: string,
   lowered: string,
   category: string,
   hasSpecific: boolean,
@@ -219,10 +252,11 @@ function checkStar(
 
   return {
     applies: category === "behavioural",
-    situation: has(SITUATION_CUES),
+    situation: has(SITUATION_CUES) || opensOnAScene(transcript),
     action: has(ACTION_CUES),
-    // A result nobody can measure is a claim, not a result.
-    result: has(RESULT_CUES) && hasSpecific,
+    // A result nobody can measure is a claim, not a result — so a figure is
+    // required either way, and only its framing is being detected here.
+    result: (has(RESULT_CUES) || closesOnAFigure(transcript)) && hasSpecific,
   };
 }
 
@@ -302,7 +336,12 @@ export function analyseAnswer({
   const fillers = countFillers(spoken);
   const fillerCount = fillers.reduce((sum, entry) => sum + entry.count, 0);
   const hedges = HEDGES.filter((hedge) => lowered.includes(hedge));
-  const star = checkStar(lowered, question.category, specifics.length > 0);
+  const star = checkStar(
+    trimmed,
+    lowered,
+    question.category,
+    specifics.length > 0,
+  );
   const pacing = measurePacing(trimmed, wordCount, question.category, spokenSeconds);
 
   return {
