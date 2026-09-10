@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useKitContext } from "@/components/kit-provider";
+import { KitNotReady } from "@/components/kit-not-ready";
 import { api, ApiError } from "@/lib/api";
 import type { Calibration } from "@/lib/types";
 
@@ -107,9 +108,7 @@ export default function CalibrationPage() {
     return () => controller.abort();
   }, [kitId, ready]);
 
-  if (!ready) {
-    return <p className="text-sm text-dim">This kit has not been built yet.</p>;
-  }
+  if (!ready) return <KitNotReady />;
 
   if (error) {
     return (

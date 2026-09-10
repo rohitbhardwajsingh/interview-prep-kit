@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Editable } from "@/components/editable";
 import { useKitContext } from "@/components/kit-provider";
+import { KitNotReady } from "@/components/kit-not-ready";
 import { ProvenanceBadge } from "@/components/provenance-badge";
 import { QuestionCard } from "@/components/question-card";
 import { SectionToolbar } from "@/components/section-toolbar";
@@ -36,9 +37,7 @@ export default function QuestionsPage() {
     });
   }, [body, category, query]);
 
-  if (!body) {
-    return <p className="text-sm text-dim">This kit has not been built yet.</p>;
-  }
+  if (!body) return <KitNotReady />;
 
   const building = kit?.status === "generating";
 

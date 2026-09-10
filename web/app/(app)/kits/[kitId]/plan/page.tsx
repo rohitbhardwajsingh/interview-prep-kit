@@ -1,6 +1,7 @@
 "use client";
 
 import { useKitContext } from "@/components/kit-provider";
+import { KitNotReady } from "@/components/kit-not-ready";
 import { formatCivilDateShort, formatMinutes, plural } from "@/lib/format";
 import { useToday } from "@/lib/use-today";
 
@@ -10,9 +11,7 @@ export default function PlanPage() {
   const { today } = useToday(kitId, ready);
 
   const body = kit?.kit;
-  if (!body) {
-    return <p className="text-sm text-dim">This kit has not been built yet.</p>;
-  }
+  if (!body) return <KitNotReady />;
 
   const byId = new Map(
     body.questions.map((question) => [question.id, question]),

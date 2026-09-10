@@ -8,6 +8,7 @@ import {
 } from "@/components/answer-recorder";
 import { AnswerScorecard } from "@/components/answer-scorecard";
 import { useKitContext } from "@/components/kit-provider";
+import { KitNotReady } from "@/components/kit-not-ready";
 import { SelfRating } from "@/components/self-rating";
 import { api, ApiError } from "@/lib/api";
 import type { Attempt } from "@/lib/types";
@@ -121,9 +122,7 @@ export default function MockPage() {
     [captured, current, busy, kitId, index, questions],
   );
 
-  if (!ready) {
-    return <p className="text-sm text-dim">This kit has not been built yet.</p>;
-  }
+  if (!ready) return <KitNotReady />;
 
   if (error && !questions) {
     return (
