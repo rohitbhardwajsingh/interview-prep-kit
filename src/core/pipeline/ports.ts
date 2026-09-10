@@ -65,6 +65,17 @@ export interface FlashcardGenerationInput {
 export interface KitPipelinePorts {
   research(request: KitRequest, context: PipelineContext): Promise<ResearchFindings>;
   extractRole(request: KitRequest, context: PipelineContext): Promise<RoleExtraction>;
+  /**
+   * Looks beyond the company's own site for public accounts of how it
+   * interviews — the parts a careers page never admits. Optional because it is
+   * a best-effort enrichment: when it finds nothing, or is not wired at all,
+   * the kit is still honest, it simply says the process is unknown.
+   */
+  findPublicDiscussion?(
+    request: KitRequest,
+    company: string,
+    context: PipelineContext,
+  ): Promise<string[]>;
   generateQuestions(
     input: QuestionGenerationInput,
     context: PipelineContext,

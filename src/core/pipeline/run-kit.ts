@@ -65,6 +65,28 @@ export async function runKit(
       `${value.pagesUsed.length} pages used, hiring process ${value.hiringProcess ? "found" : "not found"}`,
   );
 
+  // A distinct step from the crawl: this looks outside the company's own site
+  // for public accounts of its process. It is best-effort and its failure is
+  // never fatal — an empty result is the honest "nothing was found", which the
+  // brief explicitly asks us to report rather than fabricate.
+  if (ports.findPublicDiscussion) {
+    const discussion = await trace.step(
+      "search-public-discussion",
+      async () => {
+        try {
+          return (await ports.findPublicDiscussion!(request, findings.company, context)) ?? [];
+        } catch {
+          return [];
+        }
+      },
+      (value) =>
+        value.length > 0
+          ? `${value.length} public mentions found`
+          : "no public discussion found",
+    );
+    findings.publicDiscussion = [...findings.publicDiscussion, ...discussion];
+  }
+
   const allRequirementIds = extraction.requirements.map(
     (requirement) => requirement.id,
   );

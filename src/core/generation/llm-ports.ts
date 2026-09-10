@@ -1,3 +1,4 @@
+import { load } from "cheerio";
 import type { KitCompanyBrief, KitFlashcard, KitQuestion } from "../kit/schema";
 import type { LlmClient, UntrustedDocument } from "../llm/types";
 import type {
@@ -209,6 +210,49 @@ export function createLlmPorts(options: LlmPortsOptions): KitPipelinePorts {
       };
     },
 
+    /**
+     * A best-effort look beyond the company's own site, using a keyless search
+     * endpoint. Every failure mode — a timeout, a block, an empty page, no
+     * search engine at all — collapses to an empty list, because a fabricated
+     * account of an interview is worse than admitting none was found. Skipped
+     * entirely when the case is nearly out of time.
+     */
+    async findPublicDiscussion(
+      _request: KitRequest,
+      company: string,
+      context: PipelineContext,
+    ): Promise<string[]> {
+      if (timeLeft(context) < MIN_MS_FOR_OPTIONAL_STEP) return [];
+      if (!company.trim()) return [];
+
+      const fetchImpl = options.fetchImpl ?? fetch;
+      const query = `${company} interview process questions experience`;
+      const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8_000);
+      try {
+        const response = await fetchImpl(url, {
+          signal: controller.signal,
+          headers: { "user-agent": "InterviewPrepKit/1.0 (+research)" },
+        });
+        if (!response.ok) return [];
+
+        const html = await response.text();
+        const $ = load(html);
+        const snippets: string[] = [];
+        $(".result__snippet").each((_index, element) => {
+          const text = $(element).text().replace(/\s+/g, " ").trim();
+          if (text.length > 40) snippets.push(text);
+        });
+        return snippets.slice(0, 5);
+      } catch {
+        return [];
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+
     async generateQuestions(
       input: QuestionGenerationInput,
       context: PipelineContext,
@@ -238,6 +282,16 @@ export function createLlmPorts(options: LlmPortsOptions): KitPipelinePorts {
         documents.push({
           label: "hiring-process",
           content: input.findings.hiringProcess,
+        });
+      }
+
+      // Public accounts of how the company interviews shape which questions are
+      // worth asking — a company known for a system-design round should produce
+      // different questions from one that is not. Fed as untrusted content.
+      if (input.findings.publicDiscussion.length > 0) {
+        documents.push({
+          label: "public-interview-discussion",
+          content: input.findings.publicDiscussion.join("\n\n---\n\n"),
         });
       }
 

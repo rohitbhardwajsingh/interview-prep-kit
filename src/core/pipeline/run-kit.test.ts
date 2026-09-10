@@ -175,6 +175,40 @@ describe("runKit", () => {
     ]);
   });
 
+  it("runs a distinct public-discussion step when the port supports it", async () => {
+    const result = await runKit(
+      request,
+      createFakePorts({
+        requirements: [buildRequirement("r1")],
+        questionsByPass: [[buildQuestion("q1", ["r1"])]],
+        publicDiscussion: ["A candidate reported a take-home then a system design round."],
+      }),
+    );
+
+    expect(result.trace.map((entry) => entry.step)).toContain(
+      "search-public-discussion",
+    );
+  });
+
+  it("treats a failing public-discussion search as empty, never fatal", async () => {
+    const result = await runKit(
+      request,
+      createFakePorts({
+        requirements: [buildRequirement("r1")],
+        questionsByPass: [[buildQuestion("q1", ["r1"])]],
+        publicDiscussion: ["ignored"],
+        failOn: "findPublicDiscussion",
+      }),
+    );
+
+    // The run still completes and the step is recorded, honestly, as empty.
+    expect(result.kit.questions).toHaveLength(1);
+    const step = result.trace.find(
+      (entry) => entry.step === "search-public-discussion",
+    );
+    expect(step?.detail).toContain("no public discussion");
+  });
+
   it("produces a structurally valid kit from a posting with nothing to extract", async () => {
     const result = await runKit(
       { ...request, jd: "Frontend Engineer. React.", days: 1 },

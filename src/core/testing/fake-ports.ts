@@ -15,6 +15,8 @@ export interface FakePortsScript {
   questionsByPass?: KitQuestion[][];
   flashcards?: KitFlashcard[];
   findings?: Partial<ResearchFindings>;
+  /** When set, wires findPublicDiscussion to return these snippets. */
+  publicDiscussion?: string[];
   failOn?: keyof KitPipelinePorts;
   /** Thrown instead of a generic Error, to check how a fault is classified. */
   failWith?: unknown;
@@ -80,5 +82,14 @@ export function createFakePorts(script: FakePortsScript = {}): FakePorts {
       await guard("generateFlashcards");
       return script.flashcards ?? [];
     },
+
+    ...(script.publicDiscussion
+      ? {
+          async findPublicDiscussion() {
+            await guard("findPublicDiscussion");
+            return script.publicDiscussion ?? [];
+          },
+        }
+      : {}),
   };
 }
